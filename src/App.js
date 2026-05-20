@@ -266,12 +266,9 @@ Responde SOLO en JSON sin markdown:
 Responde SOLO en JSON sin markdown:
 {"type":"demanda","match":"partido","market":"mercado","pick":"selección","odds":número,"confidence":número,"expectedValue":número,"verdict":"VALOR|SIN VALOR|DUDOSO","analysis":"análisis mínimo 300 palabras en español"}`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json",
-          "x-api-key": process.env.REACT_APP_ANTHROPIC_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 1000,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
@@ -627,12 +624,9 @@ export default function App() {
     setLoadingBets(true);
     setDailyBet(null); setDreamBet(null);
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json",
-          "x-api-key": process.env.REACT_APP_ANTHROPIC_KEY,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true" },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514", max_tokens: 1000,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
