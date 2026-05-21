@@ -16,7 +16,7 @@ export default async function handler(req, res) {
     if (type === 'fixtures_today') {
       const date = new Date().toISOString().split('T')[0];
       const response = await fetch(
-        `https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${date}`,
+        `https://api-football-v1.p.rapidapi.com/v3/fixtures?date=${date}&season=2025`,
         {
           headers: {
             'x-rapidapi-key': process.env.RAPIDAPI_KEY,
