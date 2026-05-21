@@ -96,44 +96,16 @@ const callRapidAPI = async (url, params) => {
   return res.json();
 };
 
-const fetchFootballMatches = async (leagueId) => {
+const fetchMatchesBySport = async (sport) => {
   try {
-    const data = await callRapidAPI("https://api-football-v1.p.rapidapi.com/v3/fixtures", {
-      league: leagueId, date: todayISO(), season: new Date().getFullYear()
+    const sportMap = { "Fútbol": "football", "Tenis": "tennis", "NBA": "basketball", "NFL": "american-football", "Pádel": "tennis" };
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "fixtures_today", sport: sportMap[sport] || "football" })
     });
-    if (data.response?.length > 0) {
-      return data.response.map(f => `${f.teams.home.name} vs ${f.teams.away.name}`);
-    }
-    // Si no hay partidos hoy, buscar próximos
-    const next = await callRapidAPI("https://api-football-v1.p.rapidapi.com/v3/fixtures", {
-      league: leagueId, next: 6, season: new Date().getFullYear()
-    });
-    return next.response?.map(f => `${f.teams.home.name} vs ${f.teams.away.name}`) || [];
-  } catch { return []; }
-};
-
-const fetchTennisMatches = async (tournamentId) => {
-  try {
-    const data = await callRapidAPI("https://api-tennis.p.rapidapi.com/matches", {
-      tournament_id: tournamentId, date: todayISO()
-    });
-    return data.result?.map(m => `${m.player1?.name} vs ${m.player2?.name}`).filter(Boolean) || [];
-  } catch { return []; }
-};
-
-const fetchNBAMatches = async (season) => {
-  try {
-    const data = await callRapidAPI("https://api-nba-v1.p.rapidapi.com/games", {
-      date: todayISO(), season: new Date().getFullYear()
-    });
-    return data.response?.map(g => `${g.teams.home.nickname} vs ${g.teams.visitors.nickname}`) || [];
-  } catch { return []; }
-};
-
-const fetchNFLMatches = async () => {
-  try {
-    const data = await callRapidAPI("https://americanfootballapi.p.rapidapi.com/api/american-football/events/today", {});
-    return data.events?.map(e => `${e.homeTeam?.name} vs ${e.awayTeam?.name}`).filter(Boolean) || [];
+    const data = await res.json();
+    return (data.matches || []).map(m => m.match);
   } catch { return []; }
 };
 
@@ -337,30 +309,17 @@ const MatchSelector = ({ index, sel, onUpdate, onRemove, showRemove, showMarket 
     setMatches([]);
     try {
       let result = [];
-      if (sport === "Fútbol") {
-        // Intentar con API-Football primero
-        result = await fetchFootballMatches(leagueId);
-        // Si no hay partidos hoy, buscar próximos 3 días
-        if (result.length === 0) {
-          const tomorrow = new Date();
-          tomorrow.setDate(tomorrow.getDate() + 1);
-          const tomorrowStr = tomorrow.toISOString().split('T')[0];
-          const res = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ type: "rapidapi", url: `https://api-football-v1.p.rapidapi.com/v3/fixtures`, params: { league: leagueId, date: tomorrowStr, season: new Date().getFullYear() } })
-          });
-          const data = await res.json();
-          result = (data.response || []).map(f => `${f.teams.home.name} vs ${f.teams.away.name}`);
-        }
-      } else if (sport === "Tenis") result = await fetchTennisMatches(leagueId);
-      else if (sport === "NBA") result = await fetchNBAMatches(leagueId);
-      else if (sport === "NFL") result = await fetchNFLMatches();
-
+      // Obtener partidos reales via SportAPI
+      result = await fetchMatchesBySport(sport);
+      // Filtrar por liga si hay resultados
+      if (result.length > 0 && leagueName) {
+        const filtered = result.filter(m => m.toLowerCase().includes(leagueName.toLowerCase().split(" ")[0]));
+        if (filtered.length > 0) result = filtered;
+      }
       // Fallback a IA si no hay partidos
       if (result.length === 0) {
-        const data = await callAI(`Lista 5 partidos reales de ${leagueName} que se juegan hoy ${today()} o en los próximos 2 días. Si no hay partidos di "no hay partidos". Responde SOLO en JSON sin markdown: {"matches":["Equipo A vs Equipo B"],"noMatches":false}`);
-        result = data.noMatches ? [] : (data.matches || []);
+        const data = await callAI(`Lista 5 partidos reales de ${leagueName} (${sport}) que se juegan hoy ${today()} o en los próximos 2 días. Responde SOLO en JSON sin markdown: {"matches":["Equipo A vs Equipo B"]}`);
+        result = data.matches || [];
       }
       setMatches(result);
     } catch { setMatches([]); }
