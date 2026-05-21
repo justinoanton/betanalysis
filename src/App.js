@@ -337,19 +337,30 @@ const MatchSelector = ({ index, sel, onUpdate, onRemove, showRemove, showMarket 
     setMatches([]);
     try {
       let result = [];
-      if (sport === "Fútbol") result = await fetchFootballMatches(leagueId);
-      else if (sport === "Tenis") result = await fetchTennisMatches(leagueId);
+      if (sport === "Fútbol") {
+        // Intentar con API-Football primero
+        result = await fetchFootballMatches(leagueId);
+        // Si no hay partidos hoy, buscar próximos 3 días
+        if (result.length === 0) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const tomorrowStr = tomorrow.toISOString().split('T')[0];
+          const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "rapidapi", url: `https://api-football-v1.p.rapidapi.com/v3/fixtures`, params: { league: leagueId, date: tomorrowStr, season: new Date().getFullYear() } })
+          });
+          const data = await res.json();
+          result = (data.response || []).map(f => `${f.teams.home.name} vs ${f.teams.away.name}`);
+        }
+      } else if (sport === "Tenis") result = await fetchTennisMatches(leagueId);
       else if (sport === "NBA") result = await fetchNBAMatches(leagueId);
       else if (sport === "NFL") result = await fetchNFLMatches();
-      else {
-        // Pádel — IA genera los partidos
-        const data = await callAI(`Lista 5 partidos de ${leagueName} que se juegan hoy ${today()} o próximos días. Responde SOLO en JSON sin markdown: {"matches":["Jugador A vs Jugador B"]}`);
-        result = data.matches || [];
-      }
-      // Si la API no devuelve partidos, usar IA como fallback
+
+      // Fallback a IA si no hay partidos
       if (result.length === 0) {
-        const data = await callAI(`Lista 5 partidos reales de ${leagueName} que se juegan hoy ${today()} o en los próximos 2 días. Responde SOLO en JSON sin markdown: {"matches":["Equipo A vs Equipo B"]}`);
-        result = data.matches || [];
+        const data = await callAI(`Lista 5 partidos reales de ${leagueName} que se juegan hoy ${today()} o en los próximos 2 días. Si no hay partidos di "no hay partidos". Responde SOLO en JSON sin markdown: {"matches":["Equipo A vs Equipo B"],"noMatches":false}`);
+        result = data.noMatches ? [] : (data.matches || []);
       }
       setMatches(result);
     } catch { setMatches([]); }
@@ -689,13 +700,30 @@ export default function App() {
   const generateBets = async () => {
     setLoadingBets(true); setDailyBet(null); setDreamBet(null);
     try {
-      const parsed = await callAI(`Eres un analista experto en apuestas deportivas. Hoy es ${today()}. Genera DOS apuestas reales para hoy en Bet365 en fútbol, tenis, NBA o NFL.
+      // Obtener partidos reales de hoy via API-Football
+      const fixturesRes = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "fixtures_today" })
+      });
+      const fixturesData = await fixturesRes.json();
+      const matches = fixturesData.matches || [];
 
-1. DIARIA: cuota entre 1.50-1.80, alta probabilidad, partido único
-2. SOÑADORA: combinada de 3-4 selecciones con cuota total entre 8-11, mezcla de deportes
+      // La IA elige los mejores partidos y genera las apuestas
+      const matchList = matches.slice(0, 30).map(m => `${m.match} (${m.league}, ${m.country})`).join("\n");
+
+      const parsed = await callAI(`Eres un analista experto en apuestas deportivas. Hoy es ${today()}. 
+
+Estos son los partidos reales que se juegan hoy:
+${matchList || "No hay partidos de fútbol hoy, usa tenis, NBA o NFL"}
+
+Genera DOS apuestas para hoy en Bet365:
+1. DIARIA: cuota entre 1.50-1.80, alta probabilidad, partido único de la lista
+2. SOÑADORA: combinada de 3-4 selecciones con cuota total entre 8-11, mezcla de partidos de la lista y otros deportes (tenis, NBA, NFL)
 
 Responde SOLO en JSON sin markdown:
-{"daily":{"match":"partido","league":"liga","sport":"deporte","market":"mercado","pick":"selección","odds":número,"confidence":número,"analysis":"análisis detallado 200 palabras con **secciones**"},"dream":{"selections":[{"match":"partido","sport":"deporte","league":"liga","pick":"selección","odds":número}],"analysis":"análisis combinada 200 palabras"}}`);
+{"daily":{"match":"partido exacto de la lista","league":"liga","sport":"Fútbol","market":"mercado concreto","pick":"selección","odds":número,"confidence":número,"analysis":"análisis detallado 200 palabras con **secciones**"},"dream":{"selections":[{"match":"partido","sport":"deporte","league":"liga","pick":"selección","odds":número}],"analysis":"análisis combinada 200 palabras"}}`);
+
       const totalOdds = parsed.dream.selections.reduce((a, s) => a * s.odds, 1);
       setDailyBet({ ...parsed.daily, id: "daily-" + Date.now(), type: "diaria", date: today(), result: null });
       setDreamBet({ ...parsed.dream, id: "dream-" + Date.now(), type: "soñadora", date: today(), totalOdds, result: null });
