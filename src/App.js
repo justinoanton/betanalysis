@@ -7,68 +7,191 @@ const C = {
 };
 
 const today = () => new Date().toLocaleDateString("es-ES");
-const todayISO = () => new Date().toISOString().split("T")[0];
 const fmt = (n) => `${Number(n).toFixed(2)}€`;
 
+// Fecha inteligente: si son las 20h o más, incluir mañana también
+const getRelevantDate = () => {
+  const now = new Date();
+  const hour = now.getHours();
+  if (hour >= 20) {
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  }
+  return now.toISOString().split('T')[0];
+};
+
+const todayISO = () => new Date().toISOString().split('T')[0];
+
+// Filtrar partidos que aún no han empezado (o son de mañana)
+const filterUpcoming = (matches) => {
+  const now = new Date();
+  const hour = now.getHours();
+  // Si son las 20h o más, mostrar todos (incluidos los de madrugada del día siguiente)
+  if (hour >= 20) return matches;
+  // Si no, filtrar los que ya se han jugado (aproximación: quitar los de madrugada)
+  return matches.filter(m => {
+    if (!m.time) return true;
+    const matchTime = new Date(m.time);
+    return matchTime > now;
+  });
+};
+
+// ── LIGAS CON IDs DE SPORTAPI ─────────────────────────────────────────────────
 const SPORTS_DATA = {
   "Fútbol": {
     icon: "⚽",
     leagues: [
-      { name: "Premier League", id: 39 }, { name: "LaLiga", id: 140 },
-      { name: "Serie A", id: 135 }, { name: "Bundesliga", id: 78 },
-      { name: "Ligue 1", id: 61 }, { name: "Champions League", id: 2 },
-      { name: "Europa League", id: 3 }, { name: "Conference League", id: 848 },
-      { name: "Eredivisie", id: 88 }, { name: "Primeira Liga", id: 94 },
-      { name: "Liga turca", id: 203 }, { name: "Liga belga", id: 144 },
-      { name: "Libertadores", id: 13 }, { name: "Sudamericana", id: 11 },
-      { name: "Brasileirao", id: 71 }, { name: "Liga Argentina", id: 128 },
-      { name: "Liga MX", id: 262 }, { name: "MLS", id: 253 },
-      { name: "Saudi Pro League", id: 307 }, { name: "Eurocopa", id: 4 },
-      { name: "Copa América", id: 9 }, { name: "Mundial", id: 1 },
-      { name: "Nations League", id: 5 },
+      // Europa - Grandes ligas
+      { name: "Premier League", id: 17 },
+      { name: "LaLiga", id: 8 },
+      { name: "Serie A", id: 23 },
+      { name: "Bundesliga", id: 35 },
+      { name: "Ligue 1", id: 34 },
+      { name: "Eredivisie", id: 37 },
+      { name: "Primeira Liga", id: 238 },
+      { name: "Pro League Bélgica", id: 38 },
+      { name: "Super Lig Turquía", id: 52 },
+      { name: "Premiership Escocia", id: 36 },
+      // Copas nacionales
+      { name: "FA Cup", id: 19 },
+      { name: "Copa del Rey", id: 329 },
+      { name: "Coppa Italia", id: 28 },
+      { name: "DFB Pokal", id: 42 },
+      { name: "Coupe de France", id: 182 },
+      // Competiciones europeas
+      { name: "Champions League", id: 7 },
+      { name: "Europa League", id: 679 },
+      { name: "Conference League", id: 205 },
+      // América
+      { name: "Libertadores", id: 384 },
+      { name: "Sudamericana", id: 480 },
+      { name: "Brasileirao", id: 325 },
+      { name: "Liga Argentina", id: 155 },
+      { name: "Liga MX", id: 352 },
+      { name: "MLS", id: 242 },
+      { name: "Liga Colombiana", id: 240 },
+      { name: "Liga Chilena", id: 218 },
+      // Arabia y Asia
+      { name: "Saudi Pro League", id: 955 },
+      { name: "Liga Japonesa", id: 196 },
+      // Selecciones
+      { name: "Mundial", id: 16 },
+      { name: "Eurocopa", id: 1 },
+      { name: "Copa América", id: 133 },
+      { name: "Nations League UEFA", id: 1034 },
+      { name: "Eliminatorias Mundial", id: 194 },
+      { name: "Amistosos internacionales", id: 11},
     ]
   },
   "Tenis": {
     icon: "🎾",
     leagues: [
-      { name: "Roland Garros", id: "roland-garros" },
-      { name: "Wimbledon", id: "wimbledon" },
-      { name: "US Open", id: "us-open" },
-      { name: "Australian Open", id: "australian-open" },
-      { name: "ATP Masters 1000", id: "atp-masters" },
-      { name: "ATP 500", id: "atp-500" },
-      { name: "WTA 1000", id: "wta-1000" },
+      { name: "Roland Garros", id: 2480 },
+      { name: "Wimbledon", id: 2440 },
+      { name: "US Open", id: 2520 },
+      { name: "Australian Open", id: 2400 },
+      { name: "ATP Masters Madrid", id: 3866 },
+      { name: "ATP Masters Roma", id: 3867 },
+      { name: "ATP Masters Cincinnati", id: 3868 },
+      { name: "WTA Madrid", id: 3900 },
+      { name: "WTA Roma", id: 3901 },
     ]
   },
   "NBA": {
     icon: "🏀",
     leagues: [
-      { name: "NBA Regular Season", id: "standard" },
-      { name: "NBA Playoffs", id: "playoffs" },
+      { name: "NBA Regular Season", id: 132 },
+      { name: "NBA Playoffs", id: 132 },
     ]
   },
   "NFL": {
     icon: "🏈",
     leagues: [
-      { name: "NFL Regular Season", id: "reg" },
-      { name: "NFL Playoffs", id: "post" },
+      { name: "NFL Regular Season", id: 1352 },
+      { name: "NFL Playoffs", id: 1352 },
     ]
   },
   "Pádel": {
     icon: "🏓",
     leagues: [
-      { name: "Premier Padel", id: "premier-padel" },
-      { name: "World Padel Tour", id: "wpt" },
+      { name: "Premier Padel", id: null },
+      { name: "World Padel Tour", id: null },
     ]
   }
 };
 
+// Mercados completos de Bet365
 const MARKETS = {
-  "Fútbol": ["1X2 (Resultado final)", "Doble oportunidad", "Ambos marcan", "Más de 2.5 goles", "Menos de 2.5 goles", "Hándicap asiático", "Resultado al descanso", "Más de 1.5 goles", "Corners", "Tarjetas"],
-  "Tenis": ["Ganador partido", "Hándicap sets", "Total juegos", "Ganador primer set", "Más/Menos juegos"],
-  "NBA": ["Ganador partido", "Hándicap puntos", "Total puntos", "Ganador cuarto", "Total puntos equipo"],
-  "NFL": ["Ganador partido", "Hándicap puntos", "Total puntos", "Primera mitad"],
-  "Pádel": ["Ganador partido", "Hándicap sets", "Total juegos"]
+  "Fútbol": [
+    "1X2 — Resultado final",
+    "Doble oportunidad (1X / X2 / 12)",
+    "Ambos equipos marcan",
+    "Más de 0.5 goles",
+    "Más de 1.5 goles",
+    "Más de 2.5 goles",
+    "Más de 3.5 goles",
+    "Menos de 0.5 goles",
+    "Menos de 1.5 goles",
+    "Menos de 2.5 goles",
+    "Menos de 3.5 goles",
+    "Hándicap asiático",
+    "Hándicap europeo",
+    "Resultado al descanso",
+    "Resultado al descanso + final",
+    "Primer goleador",
+    "Último goleador",
+    "Marcar en cualquier momento (jugador)",
+    "Número de corners",
+    "Número de tarjetas amarillas",
+    "Tarjeta roja en el partido",
+    "Resultado exacto",
+    "Método de victoria",
+    "Goles del local",
+    "Goles del visitante",
+    "Ambos marcan en cada parte",
+  ],
+  "Tenis": [
+    "Ganador del partido",
+    "Hándicap de sets",
+    "Total de juegos",
+    "Ganador del primer set",
+    "Más/Menos juegos totales",
+    "Más/Menos juegos primer set",
+    "Resultado exacto de sets",
+    "Tie-break en el partido",
+    "Juegos del primer set",
+  ],
+  "NBA": [
+    "Ganador del partido",
+    "Hándicap de puntos",
+    "Total de puntos",
+    "Ganador del primer cuarto",
+    "Total puntos equipo local",
+    "Total puntos equipo visitante",
+    "Triple doble (jugador)",
+    "Puntos de jugador",
+    "Rebotes de jugador",
+    "Asistencias de jugador",
+    "Jugador más puntos del partido",
+  ],
+  "NFL": [
+    "Ganador del partido",
+    "Hándicap de puntos",
+    "Total de puntos",
+    "Ganador de la primera mitad",
+    "Total touchdowns",
+    "Primer anotador",
+    "Yardas pasando (jugador)",
+    "Yardas corriendo (jugador)",
+    "Touchdowns de jugador",
+  ],
+  "Pádel": [
+    "Ganador del partido",
+    "Hándicap de sets",
+    "Total de juegos",
+    "Ganador del primer set",
+  ]
 };
 
 // ── API CALLS ─────────────────────────────────────────────────────────────────
@@ -87,25 +210,32 @@ const callAI = async (prompt) => {
   return JSON.parse(text.replace(/```json|```/g, "").trim());
 };
 
-const callRapidAPI = async (url, params) => {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ type: "rapidapi", url, params })
-  });
-  return res.json();
-};
-
-const fetchMatchesBySport = async (sport) => {
+const fetchMatchesByTournament = async (tournamentId, sport) => {
   try {
     const sportMap = { "Fútbol": "football", "Tenis": "tennis", "NBA": "basketball", "NFL": "american-football", "Pádel": "tennis" };
+    const sportSlug = sportMap[sport] || "football";
+    const date = getRelevantDate();
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "fixtures_today", sport: sportMap[sport] || "football" })
+      body: JSON.stringify({ type: "fixtures_today", sport: sportSlug, date, tournamentId })
     });
     const data = await res.json();
-    return (data.matches || []).map(m => m.match);
+    return filterUpcoming(data.matches || []).map(m => m.match || m);
+  } catch { return []; }
+};
+
+const fetchAllMatchesBySport = async (sport) => {
+  try {
+    const sportMap = { "Fútbol": "football", "Tenis": "tennis", "NBA": "basketball", "NFL": "american-football", "Pádel": "tennis" };
+    const date = getRelevantDate();
+    const res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "fixtures_today", sport: sportMap[sport] || "football", date })
+    });
+    const data = await res.json();
+    return filterUpcoming(data.matches || []);
   } catch { return []; }
 };
 
@@ -309,16 +439,12 @@ const MatchSelector = ({ index, sel, onUpdate, onRemove, showRemove, showMarket 
     setMatches([]);
     try {
       let result = [];
-      // Obtener partidos reales via SportAPI
-      result = await fetchMatchesBySport(sport);
-      // Filtrar por liga si hay resultados
-      if (result.length > 0 && leagueName) {
-        const filtered = result.filter(m => m.toLowerCase().includes(leagueName.toLowerCase().split(" ")[0]));
-        if (filtered.length > 0) result = filtered;
+      if (leagueId) {
+        result = await fetchMatchesByTournament(leagueId, sport);
       }
-      // Fallback a IA si no hay partidos
+      // Fallback a IA si SportAPI no devuelve partidos
       if (result.length === 0) {
-        const data = await callAI(`Lista 5 partidos reales de ${leagueName} (${sport}) que se juegan hoy ${today()} o en los próximos 2 días. Responde SOLO en JSON sin markdown: {"matches":["Equipo A vs Equipo B"]}`);
+        const data = await callAI(`Lista los partidos reales de ${leagueName} (${sport}) que se juegan hoy ${today()} o mañana. Solo partidos que AÚN NO han empezado. Si no hay ninguno responde con lista vacía. Responde SOLO en JSON sin markdown: {"matches":["Equipo A vs Equipo B"]}`);
         result = data.matches || [];
       }
       setMatches(result);
@@ -333,7 +459,6 @@ const MatchSelector = ({ index, sel, onUpdate, onRemove, showRemove, showMarket 
         {showRemove && <button onClick={onRemove} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 20 }}>×</button>}
       </div>
 
-      {/* Deporte */}
       <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>DEPORTE</div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
         {Object.entries(SPORTS_DATA).map(([s, d]) => (
@@ -344,7 +469,6 @@ const MatchSelector = ({ index, sel, onUpdate, onRemove, showRemove, showMarket 
         ))}
       </div>
 
-      {/* Competición */}
       <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>COMPETICIÓN</div>
       <select value={sel.league || ""} onChange={e => {
         const selected = leagues.find(l => l.name === e.target.value);
@@ -357,21 +481,19 @@ const MatchSelector = ({ index, sel, onUpdate, onRemove, showRemove, showMarket 
         {leagues.map(l => <option key={l.name} value={l.name} style={{ background: C.bgCard }}>{l.name}</option>)}
       </select>
 
-      {/* Partido */}
       <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>PARTIDO</div>
       {loadingMatches ? (
         <div style={{ background: C.bgInput, borderRadius: 8, padding: 14, textAlign: "center", border: `1px solid ${C.border}` }}><Spinner /></div>
       ) : (
         <select value={sel.match || ""} onChange={e => onUpdate("match", e.target.value)} style={{ ...selStyle, marginBottom: showMarket ? 12 : 0 }} disabled={!sel.league}>
-          <option value="">{sel.league ? (matches.length === 0 ? "No hay partidos hoy" : "Selecciona partido...") : "Primero selecciona competición"}</option>
+          <option value="">{sel.league ? (matches.length === 0 ? "No hay partidos próximos" : "Selecciona partido...") : "Primero selecciona competición"}</option>
           {matches.map(m => <option key={m} value={m} style={{ background: C.bgCard }}>{m}</option>)}
         </select>
       )}
 
-      {/* Mercado */}
       {showMarket && (
         <>
-          <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>MERCADO</div>
+          <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6, marginTop: 12 }}>MERCADO</div>
           <select value={sel.market || ""} onChange={e => onUpdate("market", e.target.value)} style={selStyle} disabled={!sel.match}>
             <option value="">{sel.match ? "Selecciona mercado..." : "Primero selecciona partido"}</option>
             {(MARKETS[sport] || []).map(m => <option key={m} value={m} style={{ background: C.bgCard }}>{m}</option>)}
@@ -399,18 +521,37 @@ const AnalyzeTab = ({ onAnalysis, onSave }) => {
     setLoading(true); setResult(null);
     try {
       const prompt = mode === "demanda"
-        ? `Eres un analista experto en apuestas deportivas. Analiza en profundidad los siguientes partidos y genera la mejor recomendación de apuesta${targetOdds ? ` con cuota objetivo ${targetOdds}` : ""} en Bet365. Analiza forma reciente, H2H, lesiones, motivación y valor real vs cuota. Si hay varios partidos genera una combinada.
+        ? `Eres un analista experto en apuestas deportivas con conocimiento profundo de Bet365. Analiza en profundidad los siguientes partidos y genera la mejor recomendación${targetOdds ? ` con cuota objetivo ${targetOdds}` : ""}.
 
 Partidos: ${JSON.stringify(sels.map(s => ({ match: s.match, sport: s.sport, league: s.league })))}
 
-Responde SOLO en JSON sin markdown:
-{"type":"demanda","match":"partido","market":"mercado elegido","pick":"selección","odds":número,"confidence":número,"expectedValue":número,"analysis":"análisis detallado mínimo 300 palabras en español por secciones con **títulos**"}`
-        : `Eres un analista experto en apuestas deportivas. Analiza los siguientes partidos con los mercados elegidos y determina si tienen valor en Bet365. Calcula probabilidad real vs implícita.
+Haz un análisis PROFUNDO que incluya:
+- Forma reciente de ambos equipos/jugadores (últimos 5 partidos)
+- Head to Head histórico
+- Jugadores clave: estado de forma, lesiones, sanciones
+- Estadísticas avanzadas (xG para fútbol, PER para NBA, etc.)
+- Motivación y contexto del partido
+- Cuota real estimada vs cuota Bet365 (valor esperado)
+- Considera TODOS los mercados disponibles en Bet365, no solo el resultado
 
-Partidos: ${JSON.stringify(sels.map(s => ({ match: s.match, sport: s.sport, league: s.league, market: s.market })))}
+Si hay varios partidos, genera una combinada con el mejor mercado de cada uno.
 
 Responde SOLO en JSON sin markdown:
-{"type":"demanda","match":"partido","market":"mercado","pick":"selección","odds":número,"confidence":número,"expectedValue":número,"verdict":"VALOR|SIN VALOR|DUDOSO","analysis":"análisis mínimo 300 palabras en español con **títulos**"}`;
+{"type":"demanda","match":"partido o combinada","market":"mercado específico de Bet365","pick":"selección concreta","odds":número,"confidence":número1-100,"expectedValue":número,"analysis":"análisis muy detallado mínimo 400 palabras en español con secciones **Forma reciente**, **Head to Head**, **Jugadores clave**, **Estadísticas**, **Valor de la cuota**, **Conclusión**"}`
+        : `Eres un analista experto en apuestas deportivas con conocimiento profundo de Bet365. El usuario quiere apostar al siguiente mercado. Analiza si tiene valor real.
+
+Partidos y mercados: ${JSON.stringify(sels.map(s => ({ match: s.match, sport: s.sport, league: s.league, market: s.market })))}
+
+Haz un análisis PROFUNDO:
+- Forma reciente de ambos equipos/jugadores
+- Head to Head histórico
+- Jugadores clave: estado de forma, lesiones, sanciones
+- Estadísticas específicas del mercado elegido
+- Probabilidad real estimada vs cuota Bet365
+- Veredicto claro: VALOR / SIN VALOR / DUDOSO
+
+Responde SOLO en JSON sin markdown:
+{"type":"demanda","match":"partido","market":"mercado","pick":"selección","odds":número estimado,"confidence":número,"expectedValue":número,"verdict":"VALOR|SIN VALOR|DUDOSO","analysis":"análisis muy detallado mínimo 400 palabras en español con secciones **Forma reciente**, **Head to Head**, **Jugadores clave**, **Estadísticas del mercado**, **Valor de la cuota**, **Conclusión**"}`;
 
       const parsed = await callAI(prompt);
       parsed.id = "d-" + Date.now(); parsed.date = today();
@@ -659,29 +800,34 @@ export default function App() {
   const generateBets = async () => {
     setLoadingBets(true); setDailyBet(null); setDreamBet(null);
     try {
-      // Obtener partidos reales de hoy via API-Football
-      const fixturesRes = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "fixtures_today" })
-      });
-      const fixturesData = await fixturesRes.json();
-      const matches = fixturesData.matches || [];
+      // Obtener partidos reales de hoy/mañana
+      const [footballMatches, tennisMatches, nbaMatches] = await Promise.all([
+        fetchAllMatchesBySport("Fútbol"),
+        fetchAllMatchesBySport("Tenis"),
+        fetchAllMatchesBySport("NBA"),
+      ]);
 
-      // La IA elige los mejores partidos y genera las apuestas
-      const matchList = matches.slice(0, 30).map(m => `${m.match} (${m.league}, ${m.country})`).join("\n");
+      const footballList = footballMatches.slice(0, 20).map(m => `${m.match} (${m.league})`).join("\n");
+      const tennisList = tennisMatches.slice(0, 5).map(m => `${m.match || m} (Tenis)`).join("\n");
+      const nbaList = nbaMatches.slice(0, 5).map(m => `${m.match || m} (NBA)`).join("\n");
 
-      const parsed = await callAI(`Eres un analista experto en apuestas deportivas. Hoy es ${today()}. 
+      const allMatches = [footballList, tennisList, nbaList].filter(Boolean).join("\n");
 
-Estos son los partidos reales que se juegan hoy:
-${matchList || "No hay partidos de fútbol hoy, usa tenis, NBA o NFL"}
+      const parsed = await callAI(`Eres un analista experto en apuestas deportivas con conocimiento profundo de Bet365. Hoy es ${today()}.
+
+Estos son los partidos REALES que se juegan hoy o esta noche:
+${allMatches || "No hay datos disponibles, usa tu conocimiento"}
 
 Genera DOS apuestas para hoy en Bet365:
-1. DIARIA: cuota entre 1.50-1.80, alta probabilidad, partido único de la lista
-2. SOÑADORA: combinada de 3-4 selecciones con cuota total entre 8-11, mezcla de partidos de la lista y otros deportes (tenis, NBA, NFL)
+
+1. DIARIA: cuota entre 1.50-1.80, muy alta probabilidad, partido único de la lista. Elige el mercado con más valor, no solo el resultado (considera: ambos marcan, más/menos goles, hándicap, jugador específico, etc.)
+
+2. SOÑADORA: combinada de 3-4 selecciones con cuota total entre 8-11. Mezcla deportes. Solo usa partidos de la lista que AÚN NO se han jugado.
+
+El análisis debe incluir forma reciente, jugadores clave, estadísticas y valor real vs cuota Bet365.
 
 Responde SOLO en JSON sin markdown:
-{"daily":{"match":"partido exacto de la lista","league":"liga","sport":"Fútbol","market":"mercado concreto","pick":"selección","odds":número,"confidence":número,"analysis":"análisis detallado 200 palabras con **secciones**"},"dream":{"selections":[{"match":"partido","sport":"deporte","league":"liga","pick":"selección","odds":número}],"analysis":"análisis combinada 200 palabras"}}`);
+{"daily":{"match":"partido exacto de la lista","league":"liga","sport":"deporte","market":"mercado específico Bet365","pick":"selección concreta","odds":número,"confidence":número,"analysis":"análisis detallado 300 palabras con **Forma reciente**, **Jugadores clave**, **Valor de la cuota**"},"dream":{"selections":[{"match":"partido de la lista","sport":"deporte","league":"liga","pick":"selección concreta","odds":número}],"analysis":"análisis combinada 200 palabras"}}`);
 
       const totalOdds = parsed.dream.selections.reduce((a, s) => a * s.odds, 1);
       setDailyBet({ ...parsed.daily, id: "daily-" + Date.now(), type: "diaria", date: today(), result: null });
