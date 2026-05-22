@@ -879,11 +879,9 @@ export default function App() {
     setLoadingBets(true); setDailyBet(null); setDreamBet(null);
     try {
       // Obtener partidos reales de Bet365
-      const [footballMatches, tennisMatches, basketballMatches] = await Promise.all([
-        fetchBet365Soccer(),
-        fetchBet365Tennis(),
-        fetchBet365Basketball(),
-      ]);
+      const footballMatches = await fetchBet365Soccer();
+      const tennisMatches = await fetchBet365Tennis();
+      const basketballMatches = await fetchBet365Basketball();
 
       const footballList = footballMatches.slice(0, 20).map(m => {
         const odds = m.odds || [];
