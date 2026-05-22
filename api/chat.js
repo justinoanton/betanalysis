@@ -13,45 +13,69 @@ export default async function handler(req, res) {
   try {
     const { type, ...body } = req.body;
 
+    if (type === 'bet365_soccer') {
+      const response = await fetch(
+        'https://bet365data.p.rapidapi.com/prematch/soccer-leagues',
+        {
+          headers: {
+            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
+          }
+        }
+      );
+      const data = await response.json();
+      return res.status(200).json(data);
+    }
+
+    if (type === 'bet365_markets') {
+      const { fi } = body;
+      const response = await fetch(
+        `https://bet365data.p.rapidapi.com/prematch/event-markets?fi=${fi}`,
+        {
+          headers: {
+            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
+          }
+        }
+      );
+      const data = await response.json();
+      return res.status(200).json(data);
+    }
+
+    if (type === 'bet365_tennis') {
+      const response = await fetch(
+        'https://bet365data.p.rapidapi.com/prematch/tennis-leagues',
+        {
+          headers: {
+            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
+          }
+        }
+      );
+      const data = await response.json();
+      return res.status(200).json(data);
+    }
+
+    if (type === 'bet365_basketball') {
+      const response = await fetch(
+        'https://bet365data.p.rapidapi.com/prematch/basketball-leagues',
+        {
+          headers: {
+            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
+          }
+        }
+      );
+      const data = await response.json();
+      return res.status(200).json(data);
+    }
+
     if (type === 'fixtures_today') {
       const date = body.date || new Date().toISOString().split('T')[0];
       const sport = body.sport || 'football';
       const tournamentId = body.tournamentId;
-
       let url = `https://sportapi7.p.rapidapi.com/api/v1/sport/${sport}/scheduled-events/${date}`;
       if (tournamentId) {
         url = `https://sportapi7.p.rapidapi.com/api/v1/tournament/${tournamentId}/events/next/0`;
       }
-
-      const response = await fetch(url, {
-        headers: {
-          'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-          'x-rapidapi-host': 'sportapi7.p.rapidapi.com',
-        }
-      });
-      const data = await response.json();
-      const events = data.events || data.tournamentTeamEvents || [];
-      const matches = events.map(e => ({
-        match: `${e.homeTeam?.name} vs ${e.awayTeam?.name}`,
-        league: e.tournament?.name || '',
-        country: e.category?.name || '',
-        time: e.startTimestamp ? new Date(e.startTimestamp * 1000).toISOString() : null,
-      })).filter(m => m.match && !m.match.includes('undefined'));
-      return res.status(200).json({ matches });
-    }
-
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(body),
-    });
-    const data = await response.json();
-    res.status(response.status).json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
+      const
