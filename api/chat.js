@@ -1,4 +1,4 @@
-export const config = { maxDuration: 30 };
+export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -14,68 +14,23 @@ export default async function handler(req, res) {
     const { type, ...body } = req.body;
 
     if (type === 'bet365_soccer') {
-      const response = await fetch(
-        'https://bet365data.p.rapidapi.com/prematch/soccer-leagues',
-        {
-          headers: {
-            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        const response = await fetch(
+          'https://bet365data.p.rapidapi.com/prematch/soccer-leagues',
+          {
+            signal: controller.signal,
+            headers: {
+              'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+              'x-rapidapi-host': 'bet365data.p.rapidapi.com',
+            }
           }
-        }
-      );
-      const data = await response.json();
-      return res.status(200).json(data);
-    }
-
-    if (type === 'bet365_markets') {
-      const { fi } = body;
-      const response = await fetch(
-        `https://bet365data.p.rapidapi.com/prematch/event-markets?fi=${fi}`,
-        {
-          headers: {
-            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
-          }
-        }
-      );
-      const data = await response.json();
-      return res.status(200).json(data);
-    }
-
-    if (type === 'bet365_tennis') {
-      const response = await fetch(
-        'https://bet365data.p.rapidapi.com/prematch/tennis-leagues',
-        {
-          headers: {
-            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
-          }
-        }
-      );
-      const data = await response.json();
-      return res.status(200).json(data);
-    }
-
-    if (type === 'bet365_basketball') {
-      const response = await fetch(
-        'https://bet365data.p.rapidapi.com/prematch/basketball-leagues',
-        {
-          headers: {
-            'x-rapidapi-key': process.env.RAPIDAPI_KEY,
-            'x-rapidapi-host': 'bet365data.p.rapidapi.com',
-          }
-        }
-      );
-      const data = await response.json();
-      return res.status(200).json(data);
-    }
-
-    if (type === 'fixtures_today') {
-      const date = body.date || new Date().toISOString().split('T')[0];
-      const sport = body.sport || 'football';
-      const tournamentId = body.tournamentId;
-      let url = `https://sportapi7.p.rapidapi.com/api/v1/sport/${sport}/scheduled-events/${date}`;
-      if (tournamentId) {
-        url = `https://sportapi7.p.rapidapi.com/api/v1/tournament/${tournamentId}/events/next/0`;
-      }
-      const
+        );
+        clearTimeout(timeout);
+        const data = await response.json();
+        // Devolver solo las primeras 15 ligas para reducir tamaño
+        const limited = { ...data, leagues: (data.leagues || []).slice(0, 15) };
+        return res.status(200).json(limited);
+      } catch (e) {
+        clearTimeout(timeout);
