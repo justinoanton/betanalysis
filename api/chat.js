@@ -10,7 +10,6 @@ export default async function handler(req, res) {
   try {
     const { type, ...body } = req.body;
 
-    // ── AJUSTE 2: fixtures_today solo necesita RAPIDAPI_KEY ───────────────────
     if (type === 'fixtures_today') {
       const rapidKey = process.env.RAPIDAPI_KEY;
       if (!rapidKey) return res.status(500).json({ error: true, message: 'RAPIDAPI_KEY no configurada' });
@@ -35,6 +34,11 @@ export default async function handler(req, res) {
             id: String(e.id || ''),
             match: `${e.homeTeam.name} vs ${e.awayTeam.name}`,
             league: e.tournament?.name || '',
+            // Campos nuevos para clasificación robusta
+            country: e.tournament?.category?.country?.name || e.tournament?.category?.name || '',
+            category: e.tournament?.category?.name || '',
+            tournamentName: e.tournament?.name || '',
+            uniqueTournamentName: e.tournament?.uniqueTournament?.name || '',
             homeTeam: e.homeTeam.name,
             awayTeam: e.awayTeam.name,
             startTime: e.startTimestamp ? new Date(e.startTimestamp * 1000).toISOString() : null,
@@ -46,11 +50,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── AJUSTE 2: bet365_markets solo necesita RAPIDAPI_KEY ──────────────────
     if (type === 'bet365_markets') {
       const rapidKey = process.env.RAPIDAPI_KEY;
       if (!rapidKey) return res.status(500).json({ error: true, message: 'RAPIDAPI_KEY no configurada' });
-
       const { fi } = body;
       if (!fi) return res.status(400).json({ error: true, message: 'Falta el parámetro fi' });
       try {
@@ -71,7 +73,6 @@ export default async function handler(req, res) {
       }
     }
 
-    // ── AJUSTE 2: proxy Anthropic solo necesita REACT_APP_ANTHROPIC_KEY ──────
     const apiKey = process.env.REACT_APP_ANTHROPIC_KEY;
     if (!apiKey) return res.status(500).json({ error: true, message: 'REACT_APP_ANTHROPIC_KEY no configurada' });
 
