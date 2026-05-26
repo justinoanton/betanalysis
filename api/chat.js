@@ -1,4 +1,4 @@
-export const config = { maxDuration: 60 };
+export const config = { maxDuration: 30 };
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,30 +7,90 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).end();
 
-  const apiKey = process.env.REACT_APP_ANTHROPIC_KEY;
-  if (!apiKey) return res.status(500).json({ error: 'API key no encontrada' });
-
   try {
     const { type, ...body } = req.body;
 
-    if (type === 'bet365_soccer') {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+    // ── AJUSTE 2: fixtures_today solo necesita RAPIDAPI_KEY ───────────────────
+    if (type === 'fixtures_today') {
+      const rapidKey = process.env.RAPIDAPI_KEY;
+      if (!rapidKey) return res.status(500).json({ error: true, message: 'RAPIDAPI_KEY no configurada' });
+
+      const date = body.date || new Date().toISOString().split('T')[0];
       try {
         const response = await fetch(
-          'https://bet365data.p.rapidapi.com/prematch/soccer-leagues',
+          `https://sportapi7.p.rapidapi.com/api/v1/sport/football/scheduled-events/${date}`,
           {
-            signal: controller.signal,
             headers: {
-              'x-rapidapi-key': process.env.RAPIDAPI_KEY,
+              'x-rapidapi-key': rapidKey,
+              'x-rapidapi-host': 'sportapi7.p.rapidapi.com',
+            }
+          }
+        );
+        if (!response.ok) throw new Error(`SportAPI error: ${response.status}`);
+        const data = await response.json();
+        const events = data.events || [];
+        const matches = events
+          .filter(e => e.homeTeam?.name && e.awayTeam?.name)
+          .map(e => ({
+            id: String(e.id || ''),
+            match: `${e.homeTeam.name} vs ${e.awayTeam.name}`,
+            league: e.tournament?.name || '',
+            homeTeam: e.homeTeam.name,
+            awayTeam: e.awayTeam.name,
+            startTime: e.startTimestamp ? new Date(e.startTimestamp * 1000).toISOString() : null,
+            sport: 'football',
+          }));
+        return res.status(200).json({ matches, error: false });
+      } catch (err) {
+        return res.status(200).json({ matches: [], error: true, message: `No se pudieron cargar los partidos: ${err.message}` });
+      }
+    }
+
+    // ── AJUSTE 2: bet365_markets solo necesita RAPIDAPI_KEY ──────────────────
+    if (type === 'bet365_markets') {
+      const rapidKey = process.env.RAPIDAPI_KEY;
+      if (!rapidKey) return res.status(500).json({ error: true, message: 'RAPIDAPI_KEY no configurada' });
+
+      const { fi } = body;
+      if (!fi) return res.status(400).json({ error: true, message: 'Falta el parámetro fi' });
+      try {
+        const response = await fetch(
+          `https://bet365data.p.rapidapi.com/prematch/event-markets?fi=${fi}`,
+          {
+            headers: {
+              'x-rapidapi-key': rapidKey,
               'x-rapidapi-host': 'bet365data.p.rapidapi.com',
             }
           }
         );
-        clearTimeout(timeout);
+        if (!response.ok) throw new Error(`Bet365Data error: ${response.status}`);
         const data = await response.json();
-        // Devolver solo las primeras 15 ligas para reducir tamaño
-        const limited = { ...data, leagues: (data.leagues || []).slice(0, 15) };
-        return res.status(200).json(limited);
-      } catch (e) {
-        clearTimeout(timeout);
+        return res.status(200).json({ ...data, error: false });
+      } catch (err) {
+        return res.status(200).json({ error: true, message: `No se pudieron cargar las cuotas: ${err.message}` });
+      }
+    }
+
+    // ── AJUSTE 2: proxy Anthropic solo necesita REACT_APP_ANTHROPIC_KEY ──────
+    const apiKey = process.env.REACT_APP_ANTHROPIC_KEY;
+    if (!apiKey) return res.status(500).json({ error: true, message: 'REACT_APP_ANTHROPIC_KEY no configurada' });
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return res.status(response.status).json({ error: true, message: data.error?.message || 'Error de Anthropic', ...data });
+    }
+    return res.status(200).json(data);
+
+  } catch (err) {
+    return res.status(500).json({ error: true, message: err.message });
+  }
+}
