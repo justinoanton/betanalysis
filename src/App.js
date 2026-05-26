@@ -10,123 +10,186 @@ const todayLabel = () => new Date().toLocaleDateString("es-ES");
 const todayISO = () => new Date().toISOString().split('T')[0];
 const fmt = (n) => `${Number(n).toFixed(2)}€`;
 
-// Normalización de strings para comparación flexible
+// ── NORMALIZACIÓN Y MATCHING ──────────────────────────────────────────────────
 const normalizeStr = (str) =>
-  (str || "")
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // eliminar acentos
-    .replace(/[^a-z0-9 ]/g, " ")                       // solo letras/números
-    .replace(/\s+/g, " ")
-    .trim();
+  (str || "").toLowerCase().trim()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]/g, " ")
+    .replace(/\s+/g, " ").trim();
 
-// Abreviaturas conocidas de equipos
 const TEAM_ALIASES = {
-  "man united": "manchester united",
-  "man utd": "manchester united",
-  "man city": "manchester city",
-  "inter": "internazionale",
-  "inter milan": "internazionale",
-  "atletico": "atletico de madrid",
-  "atletico madrid": "atletico de madrid",
-  "atleti": "atletico de madrid",
-  "barca": "barcelona",
-  "fcb": "barcelona",
-  "real madrid": "real madrid",
-  "psg": "paris saint germain",
-  "paris sg": "paris saint germain",
-  "paris saint-germain": "paris saint germain",
-  "spurs": "tottenham",
-  "tottenham hotspur": "tottenham",
-  "wolves": "wolverhampton",
-  "wolverhampton wanderers": "wolverhampton",
-  "newcastle united": "newcastle",
-  "west ham united": "west ham",
-  "leicester city": "leicester",
-  "brighton & hove albion": "brighton",
-  "nottingham forest": "nottm forest",
-  "bayer 04": "bayer leverkusen",
-  "rb leipzig": "leipzig",
-  "rasenballsport leipzig": "leipzig",
-  "borussia dortmund": "dortmund",
-  "borussia monchengladbach": "monchengladbach",
-  "eintracht frankfurt": "frankfurt",
-  "vfb stuttgart": "stuttgart",
-  "olympique marseille": "marseille",
-  "olympique lyonnais": "lyon",
-  "stade rennais": "rennes",
-  "rc lens": "lens",
-  "ogc nice": "nice",
-  "ac milan": "milan",
-  "as roma": "roma",
-  "ss lazio": "lazio",
-  "ssc napoli": "napoli",
-  "juventus fc": "juventus",
-  "fc porto": "porto",
-  "slb": "benfica",
-  "sl benfica": "benfica",
-  "sporting cp": "sporting",
-  "ajax amsterdam": "ajax",
-  "psv eindhoven": "psv",
-  "celtic fc": "celtic",
-  "rangers fc": "rangers",
+  "man united": "manchester united", "man utd": "manchester united",
+  "man city": "manchester city", "inter": "internazionale",
+  "inter milan": "internazionale", "atletico": "atletico de madrid",
+  "atletico madrid": "atletico de madrid", "atleti": "atletico de madrid",
+  "barca": "barcelona", "psg": "paris saint germain",
+  "paris sg": "paris saint germain", "paris saint-germain": "paris saint germain",
+  "spurs": "tottenham", "tottenham hotspur": "tottenham",
+  "wolves": "wolverhampton", "wolverhampton wanderers": "wolverhampton",
+  "newcastle united": "newcastle", "west ham united": "west ham",
+  "leicester city": "leicester", "brighton & hove albion": "brighton",
+  "bayer 04": "bayer leverkusen", "rb leipzig": "leipzig",
+  "borussia dortmund": "dortmund", "eintracht frankfurt": "frankfurt",
+  "vfb stuttgart": "stuttgart", "olympique marseille": "marseille",
+  "olympique lyonnais": "lyon", "ac milan": "milan",
+  "as roma": "roma", "ss lazio": "lazio", "ssc napoli": "napoli",
+  "fc porto": "porto", "sl benfica": "benfica", "sporting cp": "sporting",
+  "ajax amsterdam": "ajax", "psv eindhoven": "psv",
 };
 
-const resolveAlias = (name) => {
-  const n = normalizeStr(name);
-  return TEAM_ALIASES[n] || n;
+const resolveAlias = (name) => { const n = normalizeStr(name); return TEAM_ALIASES[n] || n; };
+
+const teamsMatch = (a, b) => {
+  const na = resolveAlias(a); const nb = resolveAlias(b);
+  if (na === nb) return true;
+  if (na.length >= 4 && nb.includes(na)) return true;
+  if (nb.length >= 4 && na.includes(nb)) return true;
+  const aw = na.split(" ").filter(w => w.length > 3);
+  const bw = nb.split(" ").filter(w => w.length > 3);
+  return aw.some(w => bw.includes(w)) && aw.length > 0;
 };
 
-// Comprueba si dos nombres de equipo son razonablemente el mismo
-const teamsMatch = (aiTeam, realTeam) => {
-  const a = resolveAlias(aiTeam);
-  const b = resolveAlias(realTeam);
-  if (a === b) return true;
-  // Uno contiene al otro (mínimo 4 chars para evitar falsos positivos)
-  if (a.length >= 4 && b.includes(a)) return true;
-  if (b.length >= 4 && a.includes(b)) return true;
-  // Comparte al menos 2 palabras significativas
-  const aWords = a.split(" ").filter(w => w.length > 3);
-  const bWords = b.split(" ").filter(w => w.length > 3);
-  const shared = aWords.filter(w => bWords.includes(w));
-  return shared.length >= 1 && aWords.length > 0;
-};
-
-// Busca coincidencia flexible entre un partido de la IA y la lista real
 const findMatchingRealMatch = (aiMatch, realMatches) => {
   if (!aiMatch || !realMatches?.length) return null;
-
-  // Separar equipos del partido de la IA
   const parts = aiMatch.split(/\s+vs\.?\s+/i);
   if (parts.length < 2) return null;
-  const aiHome = parts[0].trim();
-  const aiAway = parts[1].trim();
-
+  const aiHome = parts[0].trim(); const aiAway = parts[1].trim();
   for (const rm of realMatches) {
-    const rmParts = rm.match.split(/\s+vs\.?\s+/i);
-    if (rmParts?.length < 2) continue;
-    const rmHome = rmParts[0].trim();
-    const rmAway = rmParts[1].trim();
-
-    if (teamsMatch(aiHome, rmHome) && teamsMatch(aiAway, rmAway)) return rm;
-    // También comprobar orden invertido por si acaso
-    if (teamsMatch(aiHome, rmAway) && teamsMatch(aiAway, rmHome)) return rm;
+    const rp = rm.match.split(/\s+vs\.?\s+/i);
+    if (rp?.length < 2) continue;
+    if (teamsMatch(aiHome, rp[0]) && teamsMatch(aiAway, rp[1])) return rm;
+    if (teamsMatch(aiHome, rp[1]) && teamsMatch(aiAway, rp[0])) return rm;
   }
   return null;
 };
 
-const LEAGUES = [
-  "Premier League","LaLiga","Serie A","Bundesliga","Ligue 1","Eredivisie",
-  "Primeira Liga","Pro League Bélgica","Super Lig Turquía","Premiership Escocia",
-  "FA Cup","Copa del Rey","Coppa Italia","DFB Pokal","Coupe de France",
-  "Champions League","Europa League","Conference League",
-  "Libertadores","Sudamericana","Brasileirao","Liga Argentina","Liga MX","MLS",
-  "Liga Colombiana","Liga Chilena","Saudi Pro League","Liga Japonesa",
-  "Mundial","Eurocopa","Copa América","Nations League UEFA",
-  "Eliminatorias Mundial","Amistosos internacionales",
-];
+// ── CLASIFICACIÓN DE PARTIDOS ─────────────────────────────────────────────────
+const ZONE_EUROPE = "Europa";
+const ZONE_AMERICA = "América";
+const ZONE_INTERNATIONAL = "Internacional";
+const ZONE_ALL = "Todas";
 
+const EUROPE_COUNTRIES = {
+  "España": ["spain", "espana", "la liga", "laliga", "copa del rey", "supercopa", "rfef"],
+  "Inglaterra": ["england", "premier league", "fa cup", "efl", "championship", "league one", "league two", "carabao"],
+  "Italia": ["italy", "italia", "serie a", "serie b", "coppa italia", "supercoppa"],
+  "Alemania": ["germany", "alemania", "bundesliga", "dfb pokal", "2. bundesliga"],
+  "Francia": ["france", "francia", "ligue 1", "ligue 2", "coupe de france", "trophee"],
+  "Portugal": ["portugal", "primeira liga", "liga portugal", "taca de portugal"],
+  "Países Bajos": ["netherlands", "holland", "paises bajos", "eredivisie", "knvb"],
+  "Bélgica": ["belgium", "belgica", "jupiler", "pro league", "belgique"],
+  "Turquía": ["turkey", "turquia", "super lig", "tff"],
+  "Escocia": ["scotland", "escocia", "scottish", "premiership scotland"],
+  "Austria": ["austria", "bundesliga austria", "osterreich"],
+  "Suiza": ["switzerland", "suiza", "super league switzerland", "schweizer"],
+  "Rusia": ["russia", "rusia", "russian premier", "rpfl"],
+  "Ucrania": ["ukraine", "ucrania", "ukrainian premier"],
+  "Grecia": ["greece", "grecia", "super league greece"],
+  "Dinamarca": ["denmark", "dinamarca", "superliga denmark", "danish"],
+  "Noruega": ["norway", "noruega", "eliteserien", "norwegian"],
+  "Suecia": ["sweden", "suecia", "allsvenskan", "swedish"],
+  "República Checa": ["czech", "checa", "czech first league"],
+  "Polonia": ["poland", "polonia", "ekstraklasa"],
+  "Croacia": ["croatia", "croacia", "hnl"],
+  "Serbia": ["serbia", "superliga serbia"],
+  "Romania": ["romania", "liga 1 romania"],
+  "Eslovenia": ["slovenia", "eslovenia", "prva liga"],
+  "Hungría": ["hungary", "hungria", "otp bank liga"],
+  "Bulgaria": ["bulgaria", "parva liga"],
+  "Albania": ["albania", "superliga albania"],
+  "Kosovo": ["kosovo", "superliga kosovo"],
+  "Otros Europa": [],
+};
+
+const AMERICA_COUNTRIES = {
+  "Argentina": ["argentina", "liga profesional", "primera division argentina", "copa argentina", "superliga argentina"],
+  "Brasil": ["brazil", "brasil", "brasileirao", "serie a brazil", "serie b brazil", "copa brasil", "campeonato brasileiro"],
+  "México": ["mexico", "liga mx", "ascenso mx", "copa mx"],
+  "Colombia": ["colombia", "liga betplay", "primera a colombia"],
+  "Chile": ["chile", "primera division chile", "copa chile"],
+  "Estados Unidos": ["usa", "estados unidos", "mls", "usl", "us open cup"],
+  "Uruguay": ["uruguay", "primera division uruguay", "clausura uruguay"],
+  "Paraguay": ["paraguay", "division profesional paraguay"],
+  "Ecuador": ["ecuador", "liga pro ecuador"],
+  "Bolivia": ["bolivia", "division profesional bolivia"],
+  "Venezuela": ["venezuela", "liga futve"],
+  "Peru": ["peru", "liga 1 peru"],
+  "Costa Rica": ["costa rica", "liga promerica"],
+  "Honduras": ["honduras", "liga nacional honduras"],
+  "Otros América": [],
+};
+
+const INTERNATIONAL_COMPS = {
+  "Champions League": ["champions league", "uefa champions"],
+  "Europa League": ["europa league", "uefa europa"],
+  "Conference League": ["conference league", "uecl"],
+  "Copa Libertadores": ["libertadores", "conmebol libertadores"],
+  "Copa Sudamericana": ["sudamericana", "conmebol sudamericana"],
+  "Selecciones / Copas": ["world cup", "euro", "copa america", "nations league", "eliminatorias", "qualif", "friendly", "internacionales", "international"],
+  "Otros Internacional": [],
+};
+
+// Función principal de clasificación
+const classifyMatch = (m) => {
+  const haystack = [m.league, m.country, m.category, m.tournamentName, m.uniqueTournamentName]
+    .map(s => normalizeStr(s || "")).join(" ");
+
+  // Internacional primero (Champions, etc. no tienen país)
+  for (const [comp, kws] of Object.entries(INTERNATIONAL_COMPS)) {
+    if (comp === "Otros Internacional") continue;
+    if (kws.some(kw => haystack.includes(kw))) {
+      return { zone: ZONE_INTERNATIONAL, sub: comp };
+    }
+  }
+
+  // Europa
+  for (const [country, kws] of Object.entries(EUROPE_COUNTRIES)) {
+    if (country === "Otros Europa") continue;
+    if (kws.some(kw => haystack.includes(kw))) {
+      return { zone: ZONE_EUROPE, sub: country };
+    }
+  }
+
+  // América
+  for (const [country, kws] of Object.entries(AMERICA_COUNTRIES)) {
+    if (country === "Otros América") continue;
+    if (kws.some(kw => haystack.includes(kw))) {
+      return { zone: ZONE_AMERICA, sub: country };
+    }
+  }
+
+  // Fallbacks por campo country de SportAPI
+  const countryRaw = normalizeStr(m.country || m.category || "");
+  const euroCountries = ["spain","england","italy","germany","france","portugal","netherlands","belgium","turkey","scotland","austria","switzerland","russia","ukraine","greece","denmark","norway","sweden","czech","poland","croatia","serbia","romania","hungary","bulgaria","albania","kosovo","finland","ireland","israel","cyprus","georgia","armenia","azerbaijan","kazakhstan","belarus","moldova","luxembourg","malta","andorra","liechtenstein","faroe","gibraltar","iceland","estonia","latvia","lithuania","slovakia","slovenia","north macedonia","bosnia","montenegro"];
+  const americaCountries = ["argentina","brazil","mexico","colombia","chile","usa","uruguay","paraguay","ecuador","bolivia","venezuela","peru","costa rica","honduras","el salvador","guatemala","panama","jamaica","haiti","cuba","trinidad","dominican"];
+
+  if (euroCountries.some(c => countryRaw.includes(c))) {
+    // Intentar asignar país concreto
+    const match = euroCountries.find(c => countryRaw.includes(c));
+    const countryName = Object.keys(EUROPE_COUNTRIES).find(k =>
+      EUROPE_COUNTRIES[k].some(kw => kw.includes(match || ""))
+    ) || "Otros Europa";
+    return { zone: ZONE_EUROPE, sub: countryName };
+  }
+  if (americaCountries.some(c => countryRaw.includes(c))) {
+    const match = americaCountries.find(c => countryRaw.includes(c));
+    const countryName = Object.keys(AMERICA_COUNTRIES).find(k =>
+      AMERICA_COUNTRIES[k].some(kw => kw.includes(match || ""))
+    ) || "Otros América";
+    return { zone: ZONE_AMERICA, sub: countryName };
+  }
+
+  // Si no clasifica, Internacional → Otros
+  return { zone: ZONE_INTERNATIONAL, sub: "Otros Internacional" };
+};
+
+const ZONE_SUBS = {
+  [ZONE_EUROPE]: Object.keys(EUROPE_COUNTRIES),
+  [ZONE_AMERICA]: Object.keys(AMERICA_COUNTRIES),
+  [ZONE_INTERNATIONAL]: Object.keys(INTERNATIONAL_COMPS),
+};
+
+// ── MARKETS ───────────────────────────────────────────────────────────────────
 const MARKETS = [
   "1X2 — Resultado final","Doble oportunidad (1X / X2 / 12)","Ambos equipos marcan",
   "Más de 0.5 goles","Más de 1.5 goles","Más de 2.5 goles","Más de 3.5 goles",
@@ -142,8 +205,7 @@ const MARKETS = [
 // ── API CALLS ─────────────────────────────────────────────────────────────────
 const callAPI = async (body) => {
   const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -152,40 +214,29 @@ const callAPI = async (body) => {
   return data;
 };
 
-// Lanza error si falla — para generateBets
 const fetchMatchesStrict = async () => {
   const data = await callAPI({ type: "fixtures_today", date: todayISO() });
   return data.matches || [];
 };
 
-// Devuelve {matches, error} sin lanzar — para AnalyzeTab
 const fetchMatchesSafe = async () => {
   try {
     const data = await callAPI({ type: "fixtures_today", date: todayISO() });
     return { matches: data.matches || [], error: null };
   } catch (e) {
-    return { matches: [], error: e.message || "No se pudieron cargar partidos automáticamente." };
+    return { matches: [], error: e.message || "No se pudieron cargar partidos." };
   }
 };
 
 const callAI = async (prompt) => {
   const data = await callAPI({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 2000,
-    messages: [{
-      role: "user",
-      content: prompt + "\n\nIMPORTANTE: Responde ÚNICAMENTE con JSON válido. Sin texto antes ni después. Sin bloques de código markdown. Solo el objeto JSON.",
-    }],
+    model: "claude-sonnet-4-20250514", max_tokens: 2000,
+    messages: [{ role: "user", content: prompt + "\n\nIMPORTANTE: Responde ÚNICAMENTE con JSON válido. Sin texto antes ni después. Sin bloques de código markdown. Solo el objeto JSON." }],
   });
   const text = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
   const clean = text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
-  try {
-    return JSON.parse(clean);
-  } catch {
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-    throw new Error("La IA no devolvió JSON válido");
-  }
+  try { return JSON.parse(clean); }
+  catch { const m = clean.match(/\{[\s\S]*\}/); if (m) return JSON.parse(m[0]); throw new Error("La IA no devolvió JSON válido"); }
 };
 
 // ── SMALL COMPONENTS ──────────────────────────────────────────────────────────
@@ -195,7 +246,6 @@ const Pill = ({ type }) => {
   return <span style={{ background: color + "22", color, border: `1px solid ${color}44`, borderRadius: 20, padding: "2px 10px", fontSize: 10, fontWeight: 700, letterSpacing: 0.8 }}>{label}</span>;
 };
 
-// AJUSTE 1: badge de cuota estimada
 const OddsBadge = ({ value, color = C.yellow, estimated = false }) => (
   <div style={{ background: C.bgCardLight, borderRadius: 6, padding: "6px 14px", textAlign: "center", minWidth: 56 }}>
     <div style={{ color, fontWeight: 700, fontSize: 18, lineHeight: 1 }}>{Number(value || 0).toFixed(2)}</div>
@@ -212,14 +262,7 @@ const ResultTag = ({ result }) => {
 
 const VerdictBadge = ({ verdict }) => {
   if (!verdict) return null;
-  const map = {
-    "APOSTAR": [C.green, "✓ APOSTAR"],
-    "ESPERAR": [C.yellow, "⏳ ESPERAR"],
-    "DESCARTAR": [C.red, "✗ DESCARTAR"],
-    "VALOR": [C.green, "✓ VALOR"],
-    "SIN VALOR": [C.red, "✗ SIN VALOR"],
-    "DUDOSO": [C.yellow, "~ DUDOSO"],
-  };
+  const map = { "APOSTAR": [C.green, "✓ APOSTAR"], "ESPERAR": [C.yellow, "⏳ ESPERAR"], "DESCARTAR": [C.red, "✗ DESCARTAR"], "VALOR": [C.green, "✓ VALOR"], "SIN VALOR": [C.red, "✗ SIN VALOR"], "DUDOSO": [C.yellow, "~ DUDOSO"] };
   const [color, label] = map[verdict] || [C.grey2, verdict];
   return <span style={{ color, fontWeight: 700, fontSize: 11 }}>{label}</span>;
 };
@@ -276,7 +319,6 @@ const AnalysisModal = ({ bet, onClose }) => {
           {bet.verdict && <VerdictBadge verdict={bet.verdict} />}
         </div>
         {bet.market && <div style={{ color: C.green, fontSize: 13, marginBottom: 4 }}>{bet.market} · {bet.pick}</div>}
-        {/* AJUSTE 1: cuota estimada en modal */}
         {bet.odds && <div style={{ color: C.grey2, fontSize: 12, marginBottom: 4 }}>Cuota estimada: <span style={{ color: C.yellow }}>{Number(bet.odds).toFixed(2)}</span></div>}
         {bet.stake && <div style={{ color: C.grey2, fontSize: 12, marginBottom: 4 }}>Stake sugerido: <span style={{ color: C.yellow }}>{bet.stake}</span></div>}
         {bet.mainRisk && <div style={{ color: C.yellow, fontSize: 12, marginBottom: 12 }}>⚠️ Riesgo principal: {bet.mainRisk}</div>}
@@ -307,7 +349,6 @@ const BetCard = ({ bet, stake, onAnalysis, accentColor = C.green, pillType = "di
     <div style={{ padding: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
         <div style={{ flex: 1 }}><div style={{ color: C.white, fontWeight: 700, fontSize: 16, marginBottom: 3 }}>{bet.match}</div></div>
-        {/* AJUSTE 1: estimated=true en todas las tarjetas generadas por IA */}
         <OddsBadge value={bet.odds} color={accentColor} estimated />
       </div>
       <div style={{ background: C.bgCardLight, borderRadius: 8, padding: "10px 14px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
@@ -334,7 +375,6 @@ const DreamCard = ({ bet, stake, onAnalysis }) => (
   <div style={{ background: C.bgCard, borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
     <div style={{ background: C.yellow + "18", borderBottom: `1px solid ${C.yellow}33`, padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
       <Pill type="soñadora" />
-      {/* AJUSTE 1: "CUOTA TOTAL EST." */}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <span style={{ color: C.grey2, fontSize: 12 }}>CUOTA TOTAL EST.</span>
         <span style={{ color: C.yellow, fontWeight: 700, fontSize: 18 }}>{Number(bet.totalOdds || 0).toFixed(2)}</span>
@@ -373,17 +413,10 @@ const HomeTab = ({ budget, setBudget, distribution, setDistribution, onAnalysis,
 
   const handleStart = () => {
     const n = parseFloat(input);
-    if (!n || n <= 0) {
-      setInputError("Introduce un presupuesto mayor que 0");
-      return;
-    }
+    if (!n || n <= 0) { setInputError("Introduce un presupuesto mayor que 0"); return; }
     setInputError(null);
     setBudget(n);
-    setDistribution({
-      diaria: +(n * 0.55).toFixed(2),
-      sonadora: +(n * 0.10).toFixed(2),
-      demanda: +(n * 0.35).toFixed(2),
-    });
+    setDistribution({ diaria: +(n * 0.55).toFixed(2), sonadora: +(n * 0.10).toFixed(2), demanda: +(n * 0.35).toFixed(2) });
     generateBets();
   };
 
@@ -392,31 +425,20 @@ const HomeTab = ({ budget, setBudget, distribution, setDistribution, onAnalysis,
       <div style={{ background: C.bgCard, borderRadius: 12, padding: 16, marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div>
           <div style={{ color: C.grey2, fontSize: 11, marginBottom: 4, letterSpacing: 0.8 }}>RACHA ACTUAL</div>
-          <div style={{ color: streak > 0 ? C.green : streak < 0 ? C.red : C.grey2, fontWeight: 700, fontSize: 28 }}>
-            {streak === 0 ? "—" : streak > 0 ? `+${streak} días` : `${streak} días`}
-          </div>
-          <div style={{ color: C.grey2, fontSize: 12, marginTop: 2 }}>
-            {streak === 0 ? "Sin datos aún" : streak >= 3 ? "Sigue así 🔥" : streak > 0 ? "Buen ritmo" : "Ajusta el riesgo ⚠️"}
-          </div>
+          <div style={{ color: streak > 0 ? C.green : streak < 0 ? C.red : C.grey2, fontWeight: 700, fontSize: 28 }}>{streak === 0 ? "—" : streak > 0 ? `+${streak} días` : `${streak} días`}</div>
+          <div style={{ color: C.grey2, fontSize: 12, marginTop: 2 }}>{streak === 0 ? "Sin datos aún" : streak >= 3 ? "Sigue así 🔥" : streak > 0 ? "Buen ritmo" : "Ajusta el riesgo ⚠️"}</div>
         </div>
         <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.bgCardLight, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>
           {streak === 0 ? "📊" : streak >= 3 ? "🔥" : streak > 0 ? "✅" : "⚠️"}
         </div>
       </div>
-
       <div style={{ background: C.bgCard, borderRadius: 12, padding: 16, marginBottom: 12 }}>
         <div style={{ color: C.grey2, fontSize: 11, letterSpacing: 0.8, marginBottom: 12 }}>PRESUPUESTO DEL DÍA</div>
         <div style={{ display: "flex", gap: 8 }}>
           <div style={{ flex: 1, display: "flex", alignItems: "center", background: C.bgInput, borderRadius: 8, padding: "0 12px", border: `1px solid ${inputError ? C.red : C.border}` }}>
             <span style={{ color: C.grey2, fontSize: 16, marginRight: 4 }}>€</span>
-            <input
-              type="number"
-              placeholder="0.00"
-              value={input}
-              onChange={e => { setInput(e.target.value); setInputError(null); }}
-              onKeyDown={e => e.key === "Enter" && handleStart()}
-              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.white, fontSize: 18, fontWeight: 600, padding: "12px 0", fontFamily: "inherit" }}
-            />
+            <input type="number" placeholder="0.00" value={input} onChange={e => { setInput(e.target.value); setInputError(null); }} onKeyDown={e => e.key === "Enter" && handleStart()}
+              style={{ flex: 1, background: "none", border: "none", outline: "none", color: C.white, fontSize: 18, fontWeight: 600, padding: "12px 0", fontFamily: "inherit" }} />
           </div>
           <button onClick={handleStart} style={{ background: C.green, border: "none", borderRadius: 8, padding: "0 20px", color: "#000", fontWeight: 700, fontSize: 15, cursor: "pointer" }}>OK</button>
         </div>
@@ -432,7 +454,6 @@ const HomeTab = ({ budget, setBudget, distribution, setDistribution, onAnalysis,
           </div>
         )}
       </div>
-
       {!distribution ? (
         <EmptyState icon="⚽" title="Introduce tu presupuesto" subtitle={"Introduce cuánto quieres apostar hoy\ny la IA generará las apuestas del día."} />
       ) : loadingBets ? (
@@ -461,10 +482,103 @@ const HomeTab = ({ budget, setBudget, distribution, setDistribution, onAnalysis,
   );
 };
 
+// ── SELECTOR DE PARTIDO CON ZONA/PAÍS ─────────────────────────────────────────
+const MatchSelectorWithZone = ({ index, sel, onUpdate, onRemove, showRemove, showMarket, allMatches }) => {
+  const [zone, setZone] = useState(ZONE_ALL);
+  const [sub, setSub] = useState("");
+
+  const zones = [ZONE_ALL, ZONE_EUROPE, ZONE_AMERICA, ZONE_INTERNATIONAL];
+  const subs = zone !== ZONE_ALL ? (ZONE_SUBS[zone] || []) : [];
+
+  // Filtrar partidos según zona y sub
+  const filteredMatches = allMatches.filter(m => {
+    if (zone === ZONE_ALL) return true;
+    const cls = classifyMatch(m);
+    if (cls.zone !== zone) return false;
+    if (sub && sub !== "Otros Europa" && sub !== "Otros América" && sub !== "Otros Internacional") {
+      return cls.sub === sub;
+    }
+    if (sub === "Otros Europa" || sub === "Otros América" || sub === "Otros Internacional") {
+      return cls.sub === sub;
+    }
+    return true;
+  });
+
+  const getMatchValue = () => sel.matchManual?.trim() || sel.match;
+
+  return (
+    <div style={{ background: C.bgCard, borderRadius: 12, padding: 16, marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <span style={{ color: C.grey2, fontSize: 12, fontWeight: 600 }}>SELECCIÓN {index + 1}</span>
+        {showRemove && <button onClick={onRemove} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 20 }}>×</button>}
+      </div>
+
+      {/* ZONA */}
+      <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>ZONA</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        {zones.map(z => (
+          <button key={z} onClick={() => { setZone(z); setSub(""); onUpdate("match", ""); onUpdate("matchManual", ""); }} style={{
+            background: zone === z ? C.green : C.bgCardLight, color: zone === z ? "#000" : C.grey2,
+            border: "none", borderRadius: 20, padding: "6px 12px", cursor: "pointer", fontSize: 12, fontWeight: 600,
+          }}>{z}</button>
+        ))}
+      </div>
+
+      {/* PAÍS / COMPETICIÓN */}
+      {zone !== ZONE_ALL && (
+        <>
+          <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>
+            {zone === ZONE_INTERNATIONAL ? "COMPETICIÓN" : "PAÍS"}
+          </div>
+          <select value={sub} onChange={e => { setSub(e.target.value); onUpdate("match", ""); onUpdate("matchManual", ""); }} style={{ ...selStyle, marginBottom: 12 }}>
+            <option value="">Todos ({filteredMatches.length} partidos)</option>
+            {subs.map(s => {
+              const count = allMatches.filter(m => classifyMatch(m).zone === zone && classifyMatch(m).sub === s).length;
+              return count > 0 ? <option key={s} value={s} style={{ background: C.bgCard }}>{s} ({count})</option> : null;
+            })}
+          </select>
+        </>
+      )}
+
+      {/* PARTIDO */}
+      <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>
+        PARTIDO {filteredMatches.length > 0 ? `(${filteredMatches.length} disponibles)` : ""}
+      </div>
+      {filteredMatches.length > 0 ? (
+        <select value={sel.match || ""} onChange={e => { onUpdate("match", e.target.value); onUpdate("matchManual", ""); }} style={{ ...selStyle, marginBottom: 8 }}>
+          <option value="">Selecciona partido...</option>
+          {filteredMatches.map(m => (
+            <option key={m.id || m.match} value={m.match} style={{ background: C.bgCard }}>
+              {m.match} — {m.league}
+            </option>
+          ))}
+        </select>
+      ) : null}
+
+      <input
+        placeholder={filteredMatches.length > 0 ? "O escribe manualmente: Equipo A vs Equipo B" : "Escribe el partido: Equipo A vs Equipo B"}
+        value={sel.matchManual || ""}
+        onChange={e => { onUpdate("matchManual", e.target.value); onUpdate("match", ""); }}
+        style={{ ...selStyle, marginBottom: showMarket ? 12 : 0 }}
+      />
+
+      {showMarket && (
+        <>
+          <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>MERCADO</div>
+          <select value={sel.market || ""} onChange={e => onUpdate("market", e.target.value)} style={selStyle} disabled={!getMatchValue()}>
+            <option value="">{getMatchValue() ? "Selecciona mercado..." : "Primero introduce un partido"}</option>
+            {MARKETS.map(m => <option key={m} value={m} style={{ background: C.bgCard }}>{m}</option>)}
+          </select>
+        </>
+      )}
+    </div>
+  );
+};
+
 // ── ANALIZAR ──────────────────────────────────────────────────────────────────
 const AnalyzeTab = ({ onAnalysis, onSave, allMatches, loadMatchesSafeFn }) => {
   const [mode, setMode] = useState("demanda");
-  const [sels, setSels] = useState([{ league: "", match: "", matchManual: "", market: "" }]);
+  const [sels, setSels] = useState([{ match: "", matchManual: "", market: "" }]);
   const [targetOdds, setTargetOdds] = useState("");
   const [loading, setLoading] = useState(false);
   const [loadingMatches, setLoadingMatches] = useState(false);
@@ -475,68 +589,39 @@ const AnalyzeTab = ({ onAnalysis, onSave, allMatches, loadMatchesSafeFn }) => {
 
   useEffect(() => {
     if (allMatches.length > 0) { setLocalMatches(allMatches); return; }
-    setLoadingMatches(true);
-    setMatchesError(null);
+    setLoadingMatches(true); setMatchesError(null);
     loadMatchesSafeFn().then(({ matches, error }) => {
       setLocalMatches(matches);
       if (error) setMatchesError("No se pudieron cargar partidos automáticamente. Puedes escribir el partido manualmente.");
     }).finally(() => setLoadingMatches(false));
   }, [allMatches, loadMatchesSafeFn]);
 
-  const addSel = () => setSels([...sels, { league: "", match: "", matchManual: "", market: "" }]);
+  const addSel = () => setSels([...sels, { match: "", matchManual: "", market: "" }]);
   const delSel = (i) => setSels(sels.filter((_, idx) => idx !== i));
   const updSel = (i, f, v) => { const s = [...sels]; s[i][f] = v; setSels(s); };
-
   const getMatchValue = (s) => s.matchManual?.trim() || s.match;
   const canAnalyze = sels.every(s => getMatchValue(s) && (mode === "demanda" || s.market));
-
-  const getMatchesForLeague = (leagueName) => {
-    if (!leagueName) return localMatches;
-    const kws = leagueName.toLowerCase().split(" ").filter(w => w.length > 3);
-    const f = localMatches.filter(m => kws.some(kw => m.league.toLowerCase().includes(kw)));
-    return f.length > 0 ? f : localMatches;
-  };
 
   const analyze = async () => {
     setLoading(true); setResult(null); setResultError(null);
     try {
-      const selections = sels.map(s => ({
-        match: getMatchValue(s),
-        league: s.league || "desconocida",
-        market: s.market || null,
-      }));
-
-      // AJUSTE 1: prompts con "cuota estimada/objetivo", no "cuota real Bet365"
+      const selections = sels.map(s => ({ match: getMatchValue(s), market: s.market || null }));
       const systemContext = `Eres un analista experto en apuestas deportivas.
 Fecha actual: ${todayLabel()}.
 Las cuotas que generes son ESTIMADAS, no cuotas reales de Bet365.
-REGLA: Si no tienes suficiente información fiable sobre un partido, devuelve verdict "DESCARTAR". NO fuerces apuestas.
-Responde SIEMPRE en JSON válido sin texto adicional.`;
+REGLA: Si no tienes suficiente información, devuelve verdict "DESCARTAR". NO fuerces apuestas.`;
 
       const prompt = mode === "demanda"
         ? `${systemContext}
 
-Analiza estos partidos y genera la mejor recomendación${targetOdds ? ` con cuota objetivo aproximada de ${targetOdds}` : ""}:
+Analiza estos partidos y genera la mejor recomendación${targetOdds ? ` con cuota objetivo ${targetOdds}` : ""}:
 ${JSON.stringify(selections)}
 
-Considera todos los mercados Bet365: ambos marcan, más/menos goles, hándicap, resultado al descanso, jugadores, corners, tarjetas, etc.
-Analiza: forma reciente, H2H, jugadores clave, lesiones, motivación y valor estimado vs cuota objetivo.
+Considera todos los mercados Bet365: ambos marcan, más/menos goles, hándicap, descanso, jugadores, corners, tarjetas.
+Analiza: forma reciente, H2H, jugadores clave, lesiones, motivación, valor estimado vs cuota objetivo.
 
-Devuelve este JSON exacto:
-{
-  "type": "demanda",
-  "match": "...",
-  "league": "...",
-  "market": "...",
-  "pick": "...",
-  "odds": 1.75,
-  "confidence": 72,
-  "expectedValue": "positivo",
-  "stake": "1u",
-  "verdict": "APOSTAR",
-  "analysis": "análisis mínimo 300 palabras con **Forma reciente**, **Head to Head**, **Jugadores clave**, **Valor estimado**",
-  "mainRisk": "..."
-}`
+Devuelve este JSON:
+{"type":"demanda","match":"...","league":"...","market":"...","pick":"...","odds":1.75,"confidence":72,"expectedValue":"positivo","stake":"1u","verdict":"APOSTAR","analysis":"análisis 300 palabras con **Forma reciente**, **Head to Head**, **Jugadores clave**, **Valor estimado**","mainRisk":"..."}`
         : `${systemContext}
 
 Analiza si este mercado tiene valor:
@@ -544,29 +629,13 @@ ${JSON.stringify(selections)}
 
 Analiza: forma reciente, H2H, jugadores clave, estadísticas del mercado, probabilidad real estimada vs cuota objetivo.
 
-Devuelve este JSON exacto:
-{
-  "type": "propia",
-  "match": "...",
-  "league": "...",
-  "market": "...",
-  "pick": "...",
-  "odds": 1.75,
-  "confidence": 72,
-  "expectedValue": "positivo",
-  "stake": "1u",
-  "verdict": "APOSTAR",
-  "analysis": "análisis mínimo 300 palabras con **Forma reciente**, **Head to Head**, **Jugadores clave**, **Estadísticas del mercado**, **Valor estimado**",
-  "mainRisk": "..."
-}`;
+Devuelve este JSON:
+{"type":"propia","match":"...","league":"...","market":"...","pick":"...","odds":1.75,"confidence":72,"expectedValue":"positivo","stake":"1u","verdict":"APOSTAR","analysis":"análisis 300 palabras con **Forma reciente**, **Head to Head**, **Jugadores clave**, **Estadísticas del mercado**, **Valor estimado**","mainRisk":"..."}`;
 
       const parsed = await callAI(prompt);
-      parsed.id = "d-" + Date.now();
-      parsed.date = todayLabel();
+      parsed.id = "d-" + Date.now(); parsed.date = todayLabel();
       setResult(parsed);
-    } catch (e) {
-      setResultError(e.message || "Error al analizar. Inténtalo de nuevo.");
-    }
+    } catch (e) { setResultError(e.message || "Error al analizar."); }
     setLoading(false);
   };
 
@@ -586,44 +655,14 @@ Devuelve este JSON exacto:
       {matchesError && <ErrorBox message={matchesError} />}
 
       {sels.map((s, i) => (
-        <div key={i} style={{ background: C.bgCard, borderRadius: 12, padding: 16, marginBottom: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-            <span style={{ color: C.grey2, fontSize: 12, fontWeight: 600 }}>SELECCIÓN {i + 1}</span>
-            {sels.length > 1 && <button onClick={() => delSel(i)} style={{ background: "none", border: "none", color: C.red, cursor: "pointer", fontSize: 20 }}>×</button>}
-          </div>
-
-          <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>COMPETICIÓN</div>
-          <select value={s.league} onChange={e => { updSel(i, "league", e.target.value); updSel(i, "match", ""); }} style={{ ...selStyle, marginBottom: 12 }}>
-            <option value="">Todas las competiciones</option>
-            {LEAGUES.map(l => <option key={l} value={l} style={{ background: C.bgCard }}>{l}</option>)}
-          </select>
-
-          <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>PARTIDO</div>
-          {localMatches.length > 0 && (
-            <select value={s.match} onChange={e => { updSel(i, "match", e.target.value); updSel(i, "matchManual", ""); }} style={{ ...selStyle, marginBottom: 8 }}>
-              <option value="">Selecciona partido...</option>
-              {getMatchesForLeague(s.league).map(m => (
-                <option key={m.id || m.match} value={m.match} style={{ background: C.bgCard }}>{m.match} — {m.league}</option>
-              ))}
-            </select>
-          )}
-          <input
-            placeholder={localMatches.length > 0 ? "O escribe manualmente: Equipo A vs Equipo B" : "Escribe el partido: Equipo A vs Equipo B"}
-            value={s.matchManual || ""}
-            onChange={e => { updSel(i, "matchManual", e.target.value); updSel(i, "match", ""); }}
-            style={{ ...selStyle, marginBottom: mode === "propia" ? 12 : 0 }}
-          />
-
-          {mode === "propia" && (
-            <>
-              <div style={{ color: C.grey2, fontSize: 11, marginBottom: 6 }}>MERCADO</div>
-              <select value={s.market} onChange={e => updSel(i, "market", e.target.value)} style={selStyle} disabled={!getMatchValue(s)}>
-                <option value="">{getMatchValue(s) ? "Selecciona mercado..." : "Primero introduce un partido"}</option>
-                {MARKETS.map(m => <option key={m} value={m} style={{ background: C.bgCard }}>{m}</option>)}
-              </select>
-            </>
-          )}
-        </div>
+        <MatchSelectorWithZone
+          key={i} index={i} sel={s}
+          onUpdate={(f, v) => updSel(i, f, v)}
+          onRemove={() => delSel(i)}
+          showRemove={sels.length > 1}
+          showMarket={mode === "propia"}
+          allMatches={localMatches}
+        />
       ))}
 
       <button onClick={addSel} style={{ width: "100%", background: "none", border: `1px dashed ${C.border}`, borderRadius: 10, padding: "12px 0", color: C.grey2, cursor: "pointer", marginBottom: 12, fontSize: 14 }}>+ Añadir selección</button>
@@ -645,23 +684,18 @@ Devuelve este JSON exacto:
       {result && !resultError && (
         <div style={{ marginTop: 14, background: C.bgCard, borderRadius: 12, overflow: "hidden" }}>
           <div style={{ padding: "10px 16px", background: C.green + "18", borderBottom: `1px solid ${C.green}33`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <Pill type="demanda" />
-            <VerdictBadge verdict={result.verdict} />
+            <Pill type="demanda" /><VerdictBadge verdict={result.verdict} />
           </div>
           {result.verdict === "DESCARTAR" ? (
             <div style={{ padding: 20, textAlign: "center" }}>
               <div style={{ color: C.red, fontSize: 28, marginBottom: 8 }}>✗</div>
               <div style={{ color: C.white, fontWeight: 700, marginBottom: 6 }}>Sin apuesta recomendada</div>
-              <div style={{ color: C.grey2, fontSize: 13 }}>{result.reason || result.analysis || "No hay suficiente valor para esta apuesta."}</div>
+              <div style={{ color: C.grey2, fontSize: 13 }}>{result.reason || result.analysis || "No hay suficiente valor."}</div>
             </div>
           ) : (
             <div style={{ padding: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ color: C.white, fontWeight: 700, fontSize: 16, marginBottom: 3 }}>{result.match}</div>
-                  <div style={{ color: C.green, fontSize: 13 }}>{result.market} · {result.pick}</div>
-                </div>
-                {/* AJUSTE 1: estimated en resultado de análisis */}
+                <div style={{ flex: 1 }}><div style={{ color: C.white, fontWeight: 700, fontSize: 16, marginBottom: 3 }}>{result.match}</div><div style={{ color: C.green, fontSize: 13 }}>{result.market} · {result.pick}</div></div>
                 <OddsBadge value={result.odds || 0} estimated />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -864,25 +898,14 @@ export default function App() {
   })();
 
   const generateBets = async () => {
-    setLoadingBets(true);
-    setDailyBet(null);
-    setDreamBet(null);
-    setBetsError(null);
+    setLoadingBets(true); setDailyBet(null); setDreamBet(null); setBetsError(null);
     try {
       let matches = allMatches;
-      if (matches.length === 0) {
-        matches = await fetchMatchesStrict();
-        setAllMatches(matches);
-      }
-
-      if (matches.length === 0) {
-        setBetsError("No se han encontrado partidos disponibles hoy.");
-        setLoadingBets(false);
-        return;
-      }
+      if (matches.length === 0) { matches = await fetchMatchesStrict(); setAllMatches(matches); }
+      if (matches.length === 0) { setBetsError("No se han encontrado partidos disponibles hoy."); setLoadingBets(false); return; }
 
       const matchList = matches.slice(0, 25).map(m => `${m.match} (${m.league})`).join("\n");
-      // AJUSTE 1: prompt sin "cuota real Bet365", solo "cuota estimada/objetivo"
+
       const prompt = `Eres un analista experto en apuestas deportivas.
 Fecha actual: ${todayLabel()}.
 Las cuotas que generes son ESTIMADAS, no cuotas reales de Bet365.
@@ -891,155 +914,84 @@ REGLA: Si no hay partidos con valor claro, devuelve verdict "DESCARTAR" para la 
 Partidos disponibles hoy (SOLO estos, no inventes otros):
 ${matchList}
 
-Genera DOS apuestas usando ÚNICAMENTE partidos de la lista anterior.
-IMPORTANTE: copia el campo "match" exactamente igual que aparece en la lista. No abrevies nombres de equipos ni cambies el formato.
+IMPORTANTE: copia el campo "match" exactamente igual que aparece en la lista. No abrevies nombres de equipos.
 
-1. DIARIA (partido único): cuota objetivo 1.50-1.80, mercado con más valor estimado (ambos marcan, goles, hándicap, jugadores...). Analiza forma reciente y jugadores clave.
+Genera DOS apuestas usando ÚNICAMENTE partidos de la lista:
+1. DIARIA: cuota objetivo 1.50-1.80, mercado con más valor estimado. Analiza forma reciente y jugadores clave.
+2. SOÑADORA: combinada 3-4 partidos, cuota total estimada 8-11. Copia los nombres exactamente.
 
-2. SOÑADORA (combinada 3-4 partidos): cuota total estimada 8-11. Solo partidos de la lista. Copia los nombres exactamente.
-
-Devuelve este JSON exacto y válido:
+Devuelve este JSON:
 {
-  "daily": {
-    "type": "diaria",
-    "match": "partido exacto de la lista",
-    "league": "liga",
-    "market": "mercado específico",
-    "pick": "selección concreta",
-    "odds": 1.65,
-    "confidence": 80,
-    "expectedValue": "positivo",
-    "stake": "1u",
-    "verdict": "APOSTAR",
-    "analysis": "análisis 300 palabras con **Forma reciente**, **Jugadores clave**, **Valor estimado**",
-    "mainRisk": "riesgo principal"
-  },
-  "dream": {
-    "type": "soñadora",
-    "selections": [
-      {"match": "partido exacto de la lista", "league": "liga", "pick": "selección", "odds": 1.65}
-    ],
-    "totalOdds": 9.5,
-    "analysis": "análisis 150 palabras",
-    "mainRisk": "riesgo principal"
-  }
+  "daily": {"type":"diaria","match":"partido exacto de la lista","league":"liga","market":"mercado","pick":"selección","odds":1.65,"confidence":80,"expectedValue":"positivo","stake":"1u","verdict":"APOSTAR","analysis":"300 palabras con **Forma reciente**, **Jugadores clave**, **Valor estimado**","mainRisk":"..."},
+  "dream": {"type":"soñadora","selections":[{"match":"partido exacto de la lista","league":"liga","pick":"selección","odds":1.65}],"totalOdds":9.5,"analysis":"150 palabras","mainRisk":"..."}
 }`;
 
       const parsed = await callAI(prompt);
       if (!parsed.daily) throw new Error("La IA no devolvió el formato esperado.");
 
-      // Validación flexible: busca coincidencia aproximada y sustituye por nombre real
+      // Validación flexible de partidos
       const realDailyMatch = findMatchingRealMatch(parsed.daily.match, matches);
-      if (!realDailyMatch) {
-        throw new Error("La IA devolvió un partido fuera de la lista real. Reintenta.");
-      }
-      // Sustituir por nombre exacto real
+      if (!realDailyMatch) throw new Error("La IA devolvió un partido fuera de la lista real. Reintenta.");
       parsed.daily.match = realDailyMatch.match;
       parsed.daily.league = parsed.daily.league || realDailyMatch.league;
 
       if (parsed.dream?.selections) {
         for (const sel of parsed.dream.selections) {
-          const realSelMatch = findMatchingRealMatch(sel.match, matches);
-          if (!realSelMatch) {
-            throw new Error("La IA devolvió un partido fuera de la lista real. Reintenta.");
-          }
-          // Sustituir por nombre exacto real
-          sel.match = realSelMatch.match;
-          sel.league = sel.league || realSelMatch.league;
+          const realSel = findMatchingRealMatch(sel.match, matches);
+          if (!realSel) throw new Error("La IA devolvió un partido fuera de la lista real. Reintenta.");
+          sel.match = realSel.match;
+          sel.league = sel.league || realSel.league;
         }
       }
 
-      // AJUSTE 4: campos garantizados en daily
       const daily = {
-        type: parsed.daily.type || "diaria",
-        match: parsed.daily.match || "",
-        league: parsed.daily.league || "",
-        market: parsed.daily.market || "",
-        pick: parsed.daily.pick || "",
-        odds: parsed.daily.odds || 0,
-        confidence: parsed.daily.confidence || 0,
-        expectedValue: parsed.daily.expectedValue || "neutro",
-        stake: parsed.daily.stake || "1u",
-        verdict: parsed.daily.verdict || "ESPERAR",
-        analysis: parsed.daily.analysis || "",
-        mainRisk: parsed.daily.mainRisk || "",
-        id: "daily-" + Date.now(),
-        date: todayLabel(),
-        result: null,
+        type: parsed.daily.type || "diaria", match: parsed.daily.match || "", league: parsed.daily.league || "",
+        market: parsed.daily.market || "", pick: parsed.daily.pick || "", odds: parsed.daily.odds || 0,
+        confidence: parsed.daily.confidence || 0, expectedValue: parsed.daily.expectedValue || "neutro",
+        stake: parsed.daily.stake || "1u", verdict: parsed.daily.verdict || "ESPERAR",
+        analysis: parsed.daily.analysis || "", mainRisk: parsed.daily.mainRisk || "",
+        id: "daily-" + Date.now(), date: todayLabel(), result: null,
       };
 
-      // AJUSTE 4: campos garantizados en dream
       let dream = null;
       if (parsed.dream?.selections?.length > 0) {
-        const totalOdds = parsed.dream.totalOdds ||
-          parsed.dream.selections.reduce((a, s) => a * (s.odds || 1), 1);
         dream = {
-          type: "soñadora",
-          selections: parsed.dream.selections,
-          totalOdds,
-          analysis: parsed.dream.analysis || "",
-          mainRisk: parsed.dream.mainRisk || "",
-          id: "dream-" + Date.now(),
-          date: todayLabel(),
-          result: null,
+          type: "soñadora", selections: parsed.dream.selections,
+          totalOdds: parsed.dream.totalOdds || parsed.dream.selections.reduce((a, s) => a * (s.odds || 1), 1),
+          analysis: parsed.dream.analysis || "", mainRisk: parsed.dream.mainRisk || "",
+          id: "dream-" + Date.now(), date: todayLabel(), result: null,
         };
       }
 
-      setDailyBet(daily);
-      setDreamBet(dream);
-
+      setDailyBet(daily); setDreamBet(dream);
     } catch (e) {
       const msg = e.message || "";
-      if (msg.includes("partidos") || msg.includes("SportAPI") || msg.includes("fixtures")) {
-        setBetsError("No se pudieron cargar partidos reales de hoy. Inténtalo más tarde.");
-      } else {
-        setBetsError(msg || "Error al generar las apuestas. Inténtalo de nuevo.");
-      }
+      setBetsError(msg.includes("partidos") || msg.includes("SportAPI") ? "No se pudieron cargar partidos reales de hoy. Inténtalo más tarde." : msg || "Error al generar las apuestas.");
     }
     setLoadingBets(false);
   };
 
-  const saveToRegister = (bet) => {
-    setRegister(prev => [{ ...bet, stake: distribution?.demanda }, ...prev]);
-    setTab("registro");
-  };
-
+  const saveToRegister = (bet) => { setRegister(prev => [{ ...bet, stake: distribution?.demanda }, ...prev]); setTab("registro"); };
   const loadMatchesSafeFn = useCallback(() => fetchMatchesSafe(), []);
 
   const TABS = [
-    { id: "inicio", icon: "⌂", label: "Inicio" },
-    { id: "analizar", icon: "◎", label: "Analizar" },
-    { id: "registro", icon: "☰", label: "Registro" },
-    { id: "stats", icon: "▲", label: "Stats" },
+    { id: "inicio", icon: "⌂", label: "Inicio" }, { id: "analizar", icon: "◎", label: "Analizar" },
+    { id: "registro", icon: "☰", label: "Registro" }, { id: "stats", icon: "▲", label: "Stats" },
     { id: "ajustes", icon: "◈", label: "Ajustes" },
   ];
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.white, fontFamily: "-apple-system, 'SF Pro Text', 'Helvetica Neue', Arial, sans-serif", maxWidth: 480, margin: "0 auto", paddingBottom: 72 }}>
-      <style>{`
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        input, select, textarea, button { font-family: inherit; }
-        ::-webkit-scrollbar { width: 3px; }
-        ::-webkit-scrollbar-track { background: ${C.bg}; }
-        ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; }
-        @keyframes b365pulse { 0%,100%{opacity:.3;transform:scale(.7)} 50%{opacity:1;transform:scale(1)} }
-        input::placeholder { color: ${C.grey3}; }
-        select option { background: ${C.bgCard}; color: ${C.white}; }
-      `}</style>
-
+      <style>{`* { box-sizing: border-box; margin: 0; padding: 0; } input, select, textarea, button { font-family: inherit; } ::-webkit-scrollbar { width: 3px; } ::-webkit-scrollbar-track { background: ${C.bg}; } ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 2px; } @keyframes b365pulse { 0%,100%{opacity:.3;transform:scale(.7)} 50%{opacity:1;transform:scale(1)} } input::placeholder { color: ${C.grey3}; } select option { background: ${C.bgCard}; color: ${C.white}; }`}</style>
       <div style={{ background: "#13151a", borderBottom: `1px solid ${C.border}`, padding: "14px 18px", position: "sticky", top: 0, zIndex: 100, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ background: C.green, borderRadius: 8, width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 900, fontSize: 18, color: "#000" }}>B</div>
-          <div>
-            <div style={{ color: C.white, fontWeight: 700, fontSize: 17 }}>BetAnalysis</div>
-            <div style={{ color: C.green, fontSize: 10, letterSpacing: 1 }}>POWERED BY AI</div>
-          </div>
+          <div><div style={{ color: C.white, fontWeight: 700, fontSize: 17 }}>BetAnalysis</div><div style={{ color: C.green, fontSize: 10, letterSpacing: 1 }}>POWERED BY AI</div></div>
         </div>
         <div style={{ background: C.bgCard, borderRadius: 20, padding: "6px 14px", border: `1px solid ${C.border}` }}>
           <span style={{ color: C.white, fontSize: 13, fontWeight: 600 }}>{todayLabel()}</span>
         </div>
       </div>
-
       <div style={{ padding: 14 }}>
         {tab === "inicio" && <HomeTab budget={budget} setBudget={setBudget} distribution={distribution} setDistribution={setDistribution} onAnalysis={setModal} dailyBet={dailyBet} dreamBet={dreamBet} loadingBets={loadingBets} betsError={betsError} generateBets={generateBets} streak={streak} />}
         {tab === "analizar" && <AnalyzeTab onAnalysis={setModal} onSave={saveToRegister} allMatches={allMatches} loadMatchesSafeFn={loadMatchesSafeFn} />}
@@ -1047,7 +999,6 @@ Devuelve este JSON exacto y válido:
         {tab === "stats" && <StatsTab register={register} />}
         {tab === "ajustes" && <SettingsTab />}
       </div>
-
       <div style={{ position: "fixed", bottom: 0, left: "50%", transform: "translateX(-50%)", width: "100%", maxWidth: 480, background: "#13151a", borderTop: `1px solid ${C.border}`, display: "flex" }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: 1, background: "none", border: "none", padding: "10px 0 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
@@ -1056,7 +1007,6 @@ Devuelve este JSON exacto y válido:
           </button>
         ))}
       </div>
-
       <AnalysisModal bet={modal} onClose={() => setModal(null)} />
     </div>
   );
