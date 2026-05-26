@@ -69,124 +69,171 @@ const ZONE_AMERICA = "América";
 const ZONE_INTERNATIONAL = "Internacional";
 const ZONE_ALL = "Todas";
 
-const EUROPE_COUNTRIES = {
-  "España": ["spain", "espana", "la liga", "laliga", "copa del rey", "supercopa", "rfef"],
-  "Inglaterra": ["england", "premier league", "fa cup", "efl", "championship", "league one", "league two", "carabao"],
-  "Italia": ["italy", "italia", "serie a", "serie b", "coppa italia", "supercoppa"],
-  "Alemania": ["germany", "alemania", "bundesliga", "dfb pokal", "2. bundesliga"],
-  "Francia": ["france", "francia", "ligue 1", "ligue 2", "coupe de france", "trophee"],
-  "Portugal": ["portugal", "primeira liga", "liga portugal", "taca de portugal"],
-  "Países Bajos": ["netherlands", "holland", "paises bajos", "eredivisie", "knvb"],
-  "Bélgica": ["belgium", "belgica", "jupiler", "pro league", "belgique"],
-  "Turquía": ["turkey", "turquia", "super lig", "tff"],
-  "Escocia": ["scotland", "escocia", "scottish", "premiership scotland"],
-  "Austria": ["austria", "bundesliga austria", "osterreich"],
-  "Suiza": ["switzerland", "suiza", "super league switzerland", "schweizer"],
-  "Rusia": ["russia", "rusia", "russian premier", "rpfl"],
-  "Ucrania": ["ukraine", "ucrania", "ukrainian premier"],
-  "Grecia": ["greece", "grecia", "super league greece"],
-  "Dinamarca": ["denmark", "dinamarca", "superliga denmark", "danish"],
-  "Noruega": ["norway", "noruega", "eliteserien", "norwegian"],
-  "Suecia": ["sweden", "suecia", "allsvenskan", "swedish"],
-  "República Checa": ["czech", "checa", "czech first league"],
-  "Polonia": ["poland", "polonia", "ekstraklasa"],
-  "Croacia": ["croatia", "croacia", "hnl"],
-  "Serbia": ["serbia", "superliga serbia"],
-  "Romania": ["romania", "liga 1 romania"],
-  "Eslovenia": ["slovenia", "eslovenia", "prva liga"],
-  "Hungría": ["hungary", "hungria", "otp bank liga"],
-  "Bulgaria": ["bulgaria", "parva liga"],
-  "Albania": ["albania", "superliga albania"],
-  "Kosovo": ["kosovo", "superliga kosovo"],
-  "Otros Europa": [],
+// Mapeo país seleccionado → términos exactos de country/category de SportAPI
+// SOLO se usan para comparar contra los campos reales de SportAPI (country, category)
+const COUNTRY_MAP = {
+  // Europa
+  "España":         ["spain", "espana", "españa"],
+  "Inglaterra":     ["england", "uk", "great britain"],
+  "Italia":         ["italy", "italia"],
+  "Alemania":       ["germany", "deutschland", "alemania"],
+  "Francia":        ["france", "francia"],
+  "Portugal":       ["portugal"],
+  "Países Bajos":   ["netherlands", "holland", "paises bajos", "nederland"],
+  "Bélgica":        ["belgium", "belgique", "belgica", "belgie"],
+  "Turquía":        ["turkey", "turkiye", "turquia"],
+  "Escocia":        ["scotland", "escocia"],
+  "Austria":        ["austria", "osterreich"],
+  "Suiza":          ["switzerland", "suisse", "schweiz", "suiza"],
+  "Rusia":          ["russia", "rossiya", "rusia"],
+  "Ucrania":        ["ukraine", "ukraina", "ucrania"],
+  "Grecia":         ["greece", "grecia", "hellas"],
+  "Dinamarca":      ["denmark", "dinamarca", "danmark"],
+  "Noruega":        ["norway", "noruega", "norge"],
+  "Suecia":         ["sweden", "suecia", "sverige"],
+  "República Checa":["czech", "czechia", "checa", "cesko"],
+  "Polonia":        ["poland", "polonia", "polska"],
+  "Croacia":        ["croatia", "croacia", "hrvatska"],
+  "Serbia":         ["serbia", "srbija"],
+  "Romania":        ["romania", "rumania", "rumunsko"],
+  "Hungría":        ["hungary", "hungria", "magyarország"],
+  "Bulgaria":       ["bulgaria"],
+  "Eslovenia":      ["slovenia", "eslovenia", "slovenija"],
+  "Albania":        ["albania", "shqiperia"],
+  "Kosovo":         ["kosovo"],
+  "Finlandia":      ["finland", "finlandia", "suomi"],
+  "Irlanda":        ["ireland", "irlanda", "eire"],
+  "Israel":         ["israel"],
+  "Chipre":         ["cyprus", "chipre", "kypros"],
+  "Georgia":        ["georgia"],
+  "Islandia":       ["iceland", "islandia", "island"],
+  "Estonia":        ["estonia"],
+  "Letonia":        ["latvia", "letonia"],
+  "Lituania":       ["lithuania", "lituania"],
+  "Eslovaquia":     ["slovakia", "eslovaquia", "slovensko"],
+  "Macedonia":      ["north macedonia", "macedonia", "makedonia"],
+  "Bosnia":         ["bosnia", "bosna"],
+  "Montenegro":     ["montenegro"],
+  "Kazajistán":     ["kazakhstan", "kazajistan"],
+  "Bielorrusia":    ["belarus", "bielorrusia"],
+  "Azerbaiyán":     ["azerbaijan", "azerbaiyan"],
+  "Armenia":        ["armenia"],
+  "Otros Europa":   [],
+  // América
+  "Argentina":      ["argentina"],
+  "Brasil":         ["brazil", "brasil"],
+  "México":         ["mexico", "méxico"],
+  "Colombia":       ["colombia"],
+  "Chile":          ["chile"],
+  "Estados Unidos": ["usa", "united states", "estados unidos", "us"],
+  "Uruguay":        ["uruguay"],
+  "Paraguay":       ["paraguay"],
+  "Ecuador":        ["ecuador"],
+  "Bolivia":        ["bolivia"],
+  "Venezuela":      ["venezuela"],
+  "Peru":           ["peru", "perú"],
+  "Costa Rica":     ["costa rica"],
+  "Honduras":       ["honduras"],
+  "El Salvador":    ["el salvador"],
+  "Guatemala":      ["guatemala"],
+  "Panamá":         ["panama", "panamá"],
+  "Otros América":  [],
 };
 
-const AMERICA_COUNTRIES = {
-  "Argentina": ["argentina", "liga profesional", "primera division argentina", "copa argentina", "superliga argentina"],
-  "Brasil": ["brazil", "brasil", "brasileirao", "serie a brazil", "serie b brazil", "copa brasil", "campeonato brasileiro"],
-  "México": ["mexico", "liga mx", "ascenso mx", "copa mx"],
-  "Colombia": ["colombia", "liga betplay", "primera a colombia"],
-  "Chile": ["chile", "primera division chile", "copa chile"],
-  "Estados Unidos": ["usa", "estados unidos", "mls", "usl", "us open cup"],
-  "Uruguay": ["uruguay", "primera division uruguay", "clausura uruguay"],
-  "Paraguay": ["paraguay", "division profesional paraguay"],
-  "Ecuador": ["ecuador", "liga pro ecuador"],
-  "Bolivia": ["bolivia", "division profesional bolivia"],
-  "Venezuela": ["venezuela", "liga futve"],
-  "Peru": ["peru", "liga 1 peru"],
-  "Costa Rica": ["costa rica", "liga promerica"],
-  "Honduras": ["honduras", "liga nacional honduras"],
-  "Otros América": [],
-};
-
+// Competiciones internacionales — solo se clasifican por nombre de torneo
 const INTERNATIONAL_COMPS = {
-  "Champions League": ["champions league", "uefa champions"],
-  "Europa League": ["europa league", "uefa europa"],
-  "Conference League": ["conference league", "uecl"],
-  "Copa Libertadores": ["libertadores", "conmebol libertadores"],
-  "Copa Sudamericana": ["sudamericana", "conmebol sudamericana"],
-  "Selecciones / Copas": ["world cup", "euro", "copa america", "nations league", "eliminatorias", "qualif", "friendly", "internacionales", "international"],
+  "Champions League":    ["champions league", "uefa champions"],
+  "Europa League":       ["europa league", "uefa europa"],
+  "Conference League":   ["conference league", "uecl"],
+  "Copa Libertadores":   ["libertadores", "conmebol libertadores"],
+  "Copa Sudamericana":   ["sudamericana", "conmebol sudamericana"],
+  "Selecciones / Copas": ["world cup", "copa del mundo", "euro 20", "eurocopa", "copa america", "nations league", "eliminatorias", "qualifying", "friendl", "internacional"],
   "Otros Internacional": [],
 };
 
-// Función principal de clasificación
-const classifyMatch = (m) => {
-  const haystack = [m.league, m.country, m.category, m.tournamentName, m.uniqueTournamentName]
-    .map(s => normalizeStr(s || "")).join(" ");
-
-  // Internacional primero (Champions, etc. no tienen país)
-  for (const [comp, kws] of Object.entries(INTERNATIONAL_COMPS)) {
-    if (comp === "Otros Internacional") continue;
-    if (kws.some(kw => haystack.includes(kw))) {
-      return { zone: ZONE_INTERNATIONAL, sub: comp };
-    }
-  }
-
-  // Europa
-  for (const [country, kws] of Object.entries(EUROPE_COUNTRIES)) {
-    if (country === "Otros Europa") continue;
-    if (kws.some(kw => haystack.includes(kw))) {
-      return { zone: ZONE_EUROPE, sub: country };
-    }
-  }
-
-  // América
-  for (const [country, kws] of Object.entries(AMERICA_COUNTRIES)) {
-    if (country === "Otros América") continue;
-    if (kws.some(kw => haystack.includes(kw))) {
-      return { zone: ZONE_AMERICA, sub: country };
-    }
-  }
-
-  // Fallbacks por campo country de SportAPI
-  const countryRaw = normalizeStr(m.country || m.category || "");
-  const euroCountries = ["spain","england","italy","germany","france","portugal","netherlands","belgium","turkey","scotland","austria","switzerland","russia","ukraine","greece","denmark","norway","sweden","czech","poland","croatia","serbia","romania","hungary","bulgaria","albania","kosovo","finland","ireland","israel","cyprus","georgia","armenia","azerbaijan","kazakhstan","belarus","moldova","luxembourg","malta","andorra","liechtenstein","faroe","gibraltar","iceland","estonia","latvia","lithuania","slovakia","slovenia","north macedonia","bosnia","montenegro"];
-  const americaCountries = ["argentina","brazil","mexico","colombia","chile","usa","uruguay","paraguay","ecuador","bolivia","venezuela","peru","costa rica","honduras","el salvador","guatemala","panama","jamaica","haiti","cuba","trinidad","dominican"];
-
-  if (euroCountries.some(c => countryRaw.includes(c))) {
-    // Intentar asignar país concreto
-    const match = euroCountries.find(c => countryRaw.includes(c));
-    const countryName = Object.keys(EUROPE_COUNTRIES).find(k =>
-      EUROPE_COUNTRIES[k].some(kw => kw.includes(match || ""))
-    ) || "Otros Europa";
-    return { zone: ZONE_EUROPE, sub: countryName };
-  }
-  if (americaCountries.some(c => countryRaw.includes(c))) {
-    const match = americaCountries.find(c => countryRaw.includes(c));
-    const countryName = Object.keys(AMERICA_COUNTRIES).find(k =>
-      AMERICA_COUNTRIES[k].some(kw => kw.includes(match || ""))
-    ) || "Otros América";
-    return { zone: ZONE_AMERICA, sub: countryName };
-  }
-
-  // Si no clasifica, Internacional → Otros
-  return { zone: ZONE_INTERNATIONAL, sub: "Otros Internacional" };
-};
+const EUROPE_COUNTRIES = Object.keys(COUNTRY_MAP).filter(k =>
+  !["Argentina","Brasil","México","Colombia","Chile","Estados Unidos","Uruguay","Paraguay","Ecuador","Bolivia","Venezuela","Peru","Costa Rica","Honduras","El Salvador","Guatemala","Panamá","Otros América"].includes(k)
+);
+const AMERICA_COUNTRIES = ["Argentina","Brasil","México","Colombia","Chile","Estados Unidos","Uruguay","Paraguay","Ecuador","Bolivia","Venezuela","Peru","Costa Rica","Honduras","El Salvador","Guatemala","Panamá","Otros América"];
 
 const ZONE_SUBS = {
-  [ZONE_EUROPE]: Object.keys(EUROPE_COUNTRIES),
-  [ZONE_AMERICA]: Object.keys(AMERICA_COUNTRIES),
+  [ZONE_EUROPE]: EUROPE_COUNTRIES,
+  [ZONE_AMERICA]: AMERICA_COUNTRIES,
   [ZONE_INTERNATIONAL]: Object.keys(INTERNATIONAL_COMPS),
+};
+
+// Extrae el país real de un partido usando SOLO los campos de SportAPI
+// No usa el nombre de la liga para asignar país
+const getMatchCountry = (m) => {
+  // Prioridad: country > category > nada
+  return normalizeStr(m.country || m.category || "");
+};
+
+// Comprueba si un partido pertenece al país seleccionado
+// Usa SOLO country/category de SportAPI, NO el nombre de la liga
+const matchesSelectedCountry = (m, selectedCountry) => {
+  if (!selectedCountry || selectedCountry === "Otros Europa" || selectedCountry === "Otros América") return false;
+  const countryRaw = getMatchCountry(m);
+  if (!countryRaw) return false; // sin datos de país → no asignar
+  const terms = COUNTRY_MAP[selectedCountry] || [];
+  return terms.some(t => countryRaw.includes(t));
+};
+
+// Detecta si un partido es internacional (Champions, etc.) por nombre de torneo
+const getInternationalComp = (m) => {
+  const haystack = normalizeStr([m.league, m.tournamentName, m.uniqueTournamentName].join(" "));
+  for (const [comp, kws] of Object.entries(INTERNATIONAL_COMPS)) {
+    if (comp === "Otros Internacional") continue;
+    if (kws.some(kw => haystack.includes(kw))) return comp;
+  }
+  return null;
+};
+
+// Clasificación principal
+const classifyMatch = (m) => {
+  // 1. Internacional por nombre de torneo (Champions, Europa League, etc.)
+  const intlComp = getInternationalComp(m);
+  if (intlComp) return { zone: ZONE_INTERNATIONAL, sub: intlComp };
+
+  // 2. País por campo country/category de SportAPI (fuente fiable)
+  const countryRaw = getMatchCountry(m);
+  if (countryRaw) {
+    for (const [country, terms] of Object.entries(COUNTRY_MAP)) {
+      if (country === "Otros Europa" || country === "Otros América") continue;
+      if (terms.some(t => countryRaw.includes(t))) {
+        const zone = AMERICA_COUNTRIES.includes(country) ? ZONE_AMERICA : ZONE_EUROPE;
+        return { zone, sub: country };
+      }
+    }
+  }
+
+  // 3. Fallback SOLO si no hay country/category: usar nombre de liga con mucho cuidado
+  // Solo para casos muy específicos donde el nombre de liga es inequívoco
+  if (!countryRaw) {
+    const leagueRaw = normalizeStr(m.league || m.tournamentName || "");
+    // Ligas con nombre único que no se repite en otros países
+    const UNAMBIGUOUS_LEAGUES = {
+      "premier league": { zone: ZONE_EUROPE, sub: "Inglaterra" },
+      "laliga": { zone: ZONE_EUROPE, sub: "España" },
+      "la liga": { zone: ZONE_EUROPE, sub: "España" },
+      "serie a": { zone: ZONE_EUROPE, sub: "Italia" },
+      "bundesliga": { zone: ZONE_EUROPE, sub: "Alemania" },
+      "eredivisie": { zone: ZONE_EUROPE, sub: "Países Bajos" },
+      "brasileirao": { zone: ZONE_AMERICA, sub: "Brasil" },
+      "liga mx": { zone: ZONE_AMERICA, sub: "México" },
+      "mls": { zone: ZONE_AMERICA, sub: "Estados Unidos" },
+      "ekstraklasa": { zone: ZONE_EUROPE, sub: "Polonia" },
+      "allsvenskan": { zone: ZONE_EUROPE, sub: "Suecia" },
+      "eliteserien": { zone: ZONE_EUROPE, sub: "Noruega" },
+      "superliga denmark": { zone: ZONE_EUROPE, sub: "Dinamarca" },
+    };
+    for (const [key, result] of Object.entries(UNAMBIGUOUS_LEAGUES)) {
+      if (leagueRaw.includes(key)) return result;
+    }
+  }
+
+  // 4. Sin clasificación → Otros Internacional
+  return { zone: ZONE_INTERNATIONAL, sub: "Otros Internacional" };
 };
 
 // ── MARKETS ───────────────────────────────────────────────────────────────────
@@ -489,19 +536,44 @@ const MatchSelectorWithZone = ({ index, sel, onUpdate, onRemove, showRemove, sho
 
   const zones = [ZONE_ALL, ZONE_EUROPE, ZONE_AMERICA, ZONE_INTERNATIONAL];
   const subs = zone !== ZONE_ALL ? (ZONE_SUBS[zone] || []) : [];
+  // Para el contador del selector de países, usar la misma lógica de filtrado
+  const getCountForSub = (z, s) => allMatches.filter(m => {
+    if (z === ZONE_INTERNATIONAL) {
+      if (s === "Otros Internacional") return classifyMatch(m).zone === ZONE_INTERNATIONAL && !getInternationalComp(m);
+      return getInternationalComp(m) === s;
+    }
+    if (s === "Otros Europa" || s === "Otros América") return classifyMatch(m).sub === s;
+    return matchesSelectedCountry(m, s);
+  }).length;
 
   // Filtrar partidos según zona y sub
+  // Para Europa/América: usa matchesSelectedCountry (solo country/category de SportAPI)
+  // Para Internacional: usa getInternationalComp (nombre de torneo)
   const filteredMatches = allMatches.filter(m => {
     if (zone === ZONE_ALL) return true;
-    const cls = classifyMatch(m);
-    if (cls.zone !== zone) return false;
-    if (sub && sub !== "Otros Europa" && sub !== "Otros América" && sub !== "Otros Internacional") {
-      return cls.sub === sub;
+
+    if (zone === ZONE_INTERNATIONAL) {
+      const intlComp = getInternationalComp(m);
+      if (!sub) return intlComp !== null;
+      if (sub === "Otros Internacional") return intlComp === null && classifyMatch(m).zone === ZONE_INTERNATIONAL;
+      return intlComp === sub;
     }
-    if (sub === "Otros Europa" || sub === "Otros América" || sub === "Otros Internacional") {
-      return cls.sub === sub;
+
+    // Europa o América
+    if (!sub) {
+      // Sin sub seleccionado: mostrar todos los de esa zona
+      const cls = classifyMatch(m);
+      return cls.zone === zone;
     }
-    return true;
+
+    if (sub === "Otros Europa" || sub === "Otros América") {
+      // "Otros": partidos de esa zona que no tienen país concreto asignado
+      const cls = classifyMatch(m);
+      return cls.zone === zone && cls.sub === sub;
+    }
+
+    // País concreto: usar matchesSelectedCountry (country/category de SportAPI)
+    return matchesSelectedCountry(m, sub);
   });
 
   const getMatchValue = () => sel.matchManual?.trim() || sel.match;
@@ -533,7 +605,7 @@ const MatchSelectorWithZone = ({ index, sel, onUpdate, onRemove, showRemove, sho
           <select value={sub} onChange={e => { setSub(e.target.value); onUpdate("match", ""); onUpdate("matchManual", ""); }} style={{ ...selStyle, marginBottom: 12 }}>
             <option value="">Todos ({filteredMatches.length} partidos)</option>
             {subs.map(s => {
-              const count = allMatches.filter(m => classifyMatch(m).zone === zone && classifyMatch(m).sub === s).length;
+              const count = getCountForSub(zone, s);
               return count > 0 ? <option key={s} value={s} style={{ background: C.bgCard }}>{s} ({count})</option> : null;
             })}
           </select>
