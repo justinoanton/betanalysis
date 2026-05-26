@@ -10,9 +10,111 @@ const todayLabel = () => new Date().toLocaleDateString("es-ES");
 const todayISO = () => new Date().toISOString().split('T')[0];
 const fmt = (n) => `${Number(n).toFixed(2)}€`;
 
-// AJUSTE 3: normalización de nombres de partido para comparación
-const normalizeMatch = (str) =>
-  (str || "").toLowerCase().trim().replace(/\s+/g, " ");
+// Normalización de strings para comparación flexible
+const normalizeStr = (str) =>
+  (str || "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // eliminar acentos
+    .replace(/[^a-z0-9 ]/g, " ")                       // solo letras/números
+    .replace(/\s+/g, " ")
+    .trim();
+
+// Abreviaturas conocidas de equipos
+const TEAM_ALIASES = {
+  "man united": "manchester united",
+  "man utd": "manchester united",
+  "man city": "manchester city",
+  "inter": "internazionale",
+  "inter milan": "internazionale",
+  "atletico": "atletico de madrid",
+  "atletico madrid": "atletico de madrid",
+  "atleti": "atletico de madrid",
+  "barca": "barcelona",
+  "fcb": "barcelona",
+  "real madrid": "real madrid",
+  "psg": "paris saint germain",
+  "paris sg": "paris saint germain",
+  "paris saint-germain": "paris saint germain",
+  "spurs": "tottenham",
+  "tottenham hotspur": "tottenham",
+  "wolves": "wolverhampton",
+  "wolverhampton wanderers": "wolverhampton",
+  "newcastle united": "newcastle",
+  "west ham united": "west ham",
+  "leicester city": "leicester",
+  "brighton & hove albion": "brighton",
+  "nottingham forest": "nottm forest",
+  "bayer 04": "bayer leverkusen",
+  "rb leipzig": "leipzig",
+  "rasenballsport leipzig": "leipzig",
+  "borussia dortmund": "dortmund",
+  "borussia monchengladbach": "monchengladbach",
+  "eintracht frankfurt": "frankfurt",
+  "vfb stuttgart": "stuttgart",
+  "olympique marseille": "marseille",
+  "olympique lyonnais": "lyon",
+  "stade rennais": "rennes",
+  "rc lens": "lens",
+  "ogc nice": "nice",
+  "ac milan": "milan",
+  "as roma": "roma",
+  "ss lazio": "lazio",
+  "ssc napoli": "napoli",
+  "juventus fc": "juventus",
+  "fc porto": "porto",
+  "slb": "benfica",
+  "sl benfica": "benfica",
+  "sporting cp": "sporting",
+  "ajax amsterdam": "ajax",
+  "psv eindhoven": "psv",
+  "celtic fc": "celtic",
+  "rangers fc": "rangers",
+};
+
+const resolveAlias = (name) => {
+  const n = normalizeStr(name);
+  return TEAM_ALIASES[n] || n;
+};
+
+// Comprueba si dos nombres de equipo son razonablemente el mismo
+const teamsMatch = (aiTeam, realTeam) => {
+  const a = resolveAlias(aiTeam);
+  const b = resolveAlias(realTeam);
+  if (a === b) return true;
+  // Uno contiene al otro (mínimo 4 chars para evitar falsos positivos)
+  if (a.length >= 4 && b.includes(a)) return true;
+  if (b.length >= 4 && a.includes(b)) return true;
+  // Comparte al menos 2 palabras significativas
+  const aWords = a.split(" ").filter(w => w.length > 3);
+  const bWords = b.split(" ").filter(w => w.length > 3);
+  const shared = aWords.filter(w => bWords.includes(w));
+  return shared.length >= 1 && aWords.length > 0;
+};
+
+// Busca coincidencia flexible entre un partido de la IA y la lista real
+const findMatchingRealMatch = (aiMatch, realMatches) => {
+  if (!aiMatch || !realMatches?.length) return null;
+
+  // Separar equipos del partido de la IA
+  const parts = aiMatch.split(/\s+vs\.?\s+/i);
+  if (parts.length < 2) return null;
+  const aiHome = parts[0].trim();
+  const aiAway = parts[1].trim();
+
+  for (const rm of realMatches) {
+    const rmParts = rm.match.split(/\s+vs\.?\s+/i);
+    if (rmParts?.length < 2) continue;
+    const rmHome = rmParts[0].trim();
+    const rmAway = rmParts[1].trim();
+
+    if (teamsMatch(aiHome, rmHome) && teamsMatch(aiAway, rmAway)) return rm;
+    // También comprobar orden invertido por si acaso
+    if (teamsMatch(aiHome, rmAway) && teamsMatch(aiAway, rmHome)) return rm;
+  }
+  return null;
+};
 
 const LEAGUES = [
   "Premier League","LaLiga","Serie A","Bundesliga","Ligue 1","Eredivisie",
@@ -780,9 +882,6 @@ export default function App() {
       }
 
       const matchList = matches.slice(0, 25).map(m => `${m.match} (${m.league})`).join("\n");
-      // Conjunto normalizado para validación AJUSTE 3
-      const normalizedMatchSet = new Set(matches.map(m => normalizeMatch(m.match)));
-
       // AJUSTE 1: prompt sin "cuota real Bet365", solo "cuota estimada/objetivo"
       const prompt = `Eres un analista experto en apuestas deportivas.
 Fecha actual: ${todayLabel()}.
@@ -792,11 +891,12 @@ REGLA: Si no hay partidos con valor claro, devuelve verdict "DESCARTAR" para la 
 Partidos disponibles hoy (SOLO estos, no inventes otros):
 ${matchList}
 
-Genera DOS apuestas usando ÚNICAMENTE partidos de la lista anterior:
+Genera DOS apuestas usando ÚNICAMENTE partidos de la lista anterior.
+IMPORTANTE: copia el campo "match" exactamente igual que aparece en la lista. No abrevies nombres de equipos ni cambies el formato.
 
 1. DIARIA (partido único): cuota objetivo 1.50-1.80, mercado con más valor estimado (ambos marcan, goles, hándicap, jugadores...). Analiza forma reciente y jugadores clave.
 
-2. SOÑADORA (combinada 3-4 partidos): cuota total estimada 8-11. Solo partidos de la lista.
+2. SOÑADORA (combinada 3-4 partidos): cuota total estimada 8-11. Solo partidos de la lista. Copia los nombres exactamente.
 
 Devuelve este JSON exacto y válido:
 {
@@ -828,19 +928,24 @@ Devuelve este JSON exacto y válido:
       const parsed = await callAI(prompt);
       if (!parsed.daily) throw new Error("La IA no devolvió el formato esperado.");
 
-      // AJUSTE 3: validar que daily.match está en la lista real
-      const dailyMatchNorm = normalizeMatch(parsed.daily.match);
-      if (!normalizedMatchSet.has(dailyMatchNorm)) {
+      // Validación flexible: busca coincidencia aproximada y sustituye por nombre real
+      const realDailyMatch = findMatchingRealMatch(parsed.daily.match, matches);
+      if (!realDailyMatch) {
         throw new Error("La IA devolvió un partido fuera de la lista real. Reintenta.");
       }
+      // Sustituir por nombre exacto real
+      parsed.daily.match = realDailyMatch.match;
+      parsed.daily.league = parsed.daily.league || realDailyMatch.league;
 
-      // AJUSTE 3: validar que todos los partidos de dream están en la lista real
       if (parsed.dream?.selections) {
         for (const sel of parsed.dream.selections) {
-          const selNorm = normalizeMatch(sel.match);
-          if (!normalizedMatchSet.has(selNorm)) {
+          const realSelMatch = findMatchingRealMatch(sel.match, matches);
+          if (!realSelMatch) {
             throw new Error("La IA devolvió un partido fuera de la lista real. Reintenta.");
           }
+          // Sustituir por nombre exacto real
+          sel.match = realSelMatch.match;
+          sel.league = sel.league || realSelMatch.league;
         }
       }
 
